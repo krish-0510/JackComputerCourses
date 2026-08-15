@@ -1,11 +1,12 @@
 import axios from 'axios'
-import { AlertCircle, CheckCircle2, Plus, RefreshCw, X } from 'lucide-react'
+import { Plus, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import AdminCourseForm from '../../Components/Admin/AdminCourseForm'
 import AdminCourseList from '../../Components/Admin/AdminCourseList'
 import AdminNavbar from '../../Components/Admin/AdminNavbar'
 import CourseCatalogControls from '../../Components/Common/CourseCatalogControls'
+import PageBanner from '../../Components/Common/PageBanner'
 import {
   defaultCourseCatalogFilters,
   getFilteredSortedCourses,
@@ -39,35 +40,6 @@ const emptyCourseForm = {
 const getErrorMessage = (error, fallback) => (
   error?.response?.data?.message || fallback
 )
-
-// Page-level outcomes only: anything raised while the dialog is open belongs
-// beside the fields that caused it, not behind the backdrop.
-const PageBanner = ({ tone, message, onDismiss }) => {
-  const isError = tone === 'error'
-  const Icon = isError ? AlertCircle : CheckCircle2
-
-  return (
-    <div
-      role="status"
-      className={`mb-6 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm font-medium ${
-        isError
-          ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300'
-          : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/40 dark:text-emerald-300'
-      }`}
-    >
-      <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-      <span className="min-w-0 flex-1">{message}</span>
-      <button
-        type="button"
-        onClick={onDismiss}
-        aria-label="Dismiss message"
-        className="-my-1 -mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition hover:bg-black/5 dark:hover:bg-white/10"
-      >
-        <X className="h-4 w-4" aria-hidden="true" />
-      </button>
-    </div>
-  )
-}
 
 const toListInput = (value) => (
   Array.isArray(value) ? value.join(', ') : ''
@@ -454,11 +426,11 @@ const AdminCourses = () => {
         </div>
 
         {error ? (
-          <PageBanner tone="error" message={error} onDismiss={() => setError('')} />
+          <PageBanner tone="error" message={error} onDismiss={() => setError('')} className="mb-6" />
         ) : null}
 
         {success ? (
-          <PageBanner tone="success" message={success} onDismiss={() => setSuccess('')} />
+          <PageBanner tone="success" message={success} onDismiss={() => setSuccess('')} className="mb-6" />
         ) : null}
 
         {!loadingCourses && courses.length ? (

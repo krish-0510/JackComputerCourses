@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { formatUserData } = require('../controllers/user.controller');
+const { formatUserData: formatUserDataForAdmin } = require('../controllers/admin.controller');
 const User = require('../models/user.model');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -115,6 +116,18 @@ test('a detail that was typed has to be usable', () => {
     assert.match(errors['profile.email'].message, /valid email/);
     assert.match(errors['profile.alternatePhone'].message, /10 to 15 digits/);
     assert.match(errors['profile.pincode'].message, /4 to 10 digits/);
+});
+
+// Blocking runs across the enrolment standing rather than replacing it, so the admin
+// table has to be told both about the same account.
+test('an account is unblocked until a date says otherwise, and blocking is its own standing', () => {
+    const user = buildUser();
+    const blocked = buildUser({ bannedAt: new Date('2026-08-15T10:00:00.000Z') });
+
+    assert.equal(user.bannedAt, null);
+    assert.equal(formatUserDataForAdmin(user, true).isBanned, false);
+    assert.equal(formatUserDataForAdmin(blocked, true).isBanned, true);
+    assert.equal(formatUserDataForAdmin(blocked, true).isActive, true);
 });
 
 test('a date of birth that is not a real past date is rejected', () => {

@@ -10,7 +10,7 @@ import UserVideoPlayer from '../../Components/User/UserVideoPlayer'
 import getUserCoursePlayerPageTour from '../Tour/User/UserCoursePlayerPageTour'
 import { useAuth } from '../../Context/AuthContext'
 import { resolveInitialVideoKey, saveLastWatchedVideo } from '../../utils/courseProgress'
-import { formatAccessDate, getCourseExpiryWarning } from '../../utils/courseAccess'
+import { formatAccessEnd, getCourseExpiryWarning } from '../../utils/courseAccess'
 
 const API_BASE_URL = import.meta.env.VITE_BASE_URL
 
@@ -39,7 +39,7 @@ const getAccessText = (course) => {
     return 'Open to all'
   }
 
-  const accessEndDate = formatAccessDate(course.accessEndsOn || course.accessEndsAt)
+  const accessEndDate = formatAccessEnd(course)
 
   return accessEndDate ? `Access ends ${accessEndDate}` : ''
 }

@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const {
     normalizePhoneArray,
     courseUserHasAccess,
+    courseUserHasEnrolment,
     parseCourseDurationMonths,
     getCourseDurationDays,
     getCourseAccessWindow,
@@ -119,4 +120,151 @@ test('course access expires at midnight after the converted duration days', () =
     assert.equal(courseUserHasAccess(course, '9876543210', {
         now: new Date('2026-04-01T00:00:00.000Z')
     }), false);
+});
+
+test('a custom expiry replaces the course duration for that one grant', () => {
+    const course = {
+        duration: '3',
+        accessGrants: [
+            {
+                phone: '9876543210',
+                grantedAt: new Date('2026-01-01T10:00:00.000Z'),
+                expiresAt: new Date('2026-02-10T18:30:00.000Z')
+            },
+            { phone: '9000000002', grantedAt: new Date('2026-01-01T10:00:00.000Z') }
+        ]
+    };
+
+    const customWindow = getCourseAccessWindow(course, '9876543210', new Date('2026-02-01T12:00:00.000Z'));
+
+    assert.equal(customWindow.type, 'custom');
+    assert.equal(customWindow.endsAt.toISOString(), '2026-02-10T18:30:00.000Z');
+    // The course duration is no longer what the window is made of, so it is not reported.
+    assert.equal(customWindow.durationMonths, null);
+    assert.equal(customWindow.durationDays, null);
+
+    // The grant beside it is untouched and still runs on the course duration.
+    assert.equal(getCourseAccessWindow(course, '9000000002', new Date('2026-02-01T12:00:00.000Z')).type, 'assigned');
+
+    assert.equal(courseUserHasAccess(course, '9876543210', {
+        now: new Date('2026-02-10T18:29:59.999Z')
+    }), true);
+    assert.equal(courseUserHasAccess(course, '9876543210', {
+        now: new Date('2026-02-10T18:30:00.000Z')
+    }), false);
+});
+
+test('a custom expiry can outlast the course duration and give a course without one a deadline', () => {
+    const longerThanDuration = {
+        duration: '1',
+        accessGrants: [
+            {
+                phone: '9876543210',
+                grantedAt: new Date('2026-01-01T10:00:00.000Z'),
+                expiresAt: new Date('2026-06-01T09:00:00.000Z')
+            }
+        ]
+    };
+
+    // Past the month the course would have given, still running on the date it was set.
+    assert.equal(courseUserHasAccess(longerThanDuration, '9876543210', {
+        now: new Date('2026-05-01T12:00:00.000Z')
+    }), true);
+
+    const noDuration = {
+        duration: '',
+        accessGrants: [
+            {
+                phone: '9876543210',
+                grantedAt: new Date('2026-01-01T10:00:00.000Z'),
+                expiresAt: new Date('2026-06-01T09:00:00.000Z')
+            }
+        ]
+    };
+
+    assert.equal(getCourseAccessWindow(noDuration, '9876543210', new Date('2026-05-01T12:00:00.000Z')).type, 'custom');
+    assert.equal(courseUserHasAccess(noDuration, '9876543210', {
+        now: new Date('2026-05-01T12:00:00.000Z')
+    }), true);
+});
+
+test('an account is kept active by a custom expiry exactly as by the course duration', () => {
+    const courses = [
+        {
+            duration: '1',
+            accessGrants: [
+                // The course duration ran out in February; the hand-set date has not.
+                {
+                    phone: '9000000001',
+                    grantedAt: new Date('2026-01-01T10:00:00.000Z'),
+                    expiresAt: new Date('2026-09-01T09:00:00.000Z')
+                },
+                // Still inside the course duration, but hand-dated to have ended.
+                {
+                    phone: '9000000002',
+                    grantedAt: new Date('2026-08-01T10:00:00.000Z'),
+                    expiresAt: new Date('2026-08-04T09:00:00.000Z')
+                }
+            ]
+        }
+    ];
+
+    assert.deepEqual(
+        [...collectActiveUserPhones(courses, new Date('2026-08-06T12:00:00.000Z'))],
+        ['9000000001']
+    );
+});
+
+test('an ended grant is still an enrolment, and a course that never granted one is not', () => {
+    const course = {
+        duration: '1',
+        accessGrants: [
+            { phone: '9876543210', grantedAt: new Date('2026-01-01T10:00:00.000Z') }
+        ]
+    };
+
+    const afterItClosed = { now: new Date('2026-06-01T12:00:00.000Z') };
+
+    // The course stays on the student's shelf once the window closes, and opens nothing.
+    assert.equal(courseUserHasEnrolment(course, '9876543210', afterItClosed), true);
+    assert.equal(courseUserHasAccess(course, '9876543210', afterItClosed), false);
+
+    assert.equal(courseUserHasEnrolment(course, '0000000000', afterItClosed), false);
+    assert.equal(courseUserHasEnrolment(course, '', afterItClosed), false);
+
+    // A grant with no deadline to be inside of is no window at all, so it is no more
+    // visible than it is playable.
+    const noDeadline = {
+        duration: '',
+        accessGrants: [
+            { phone: '9876543210', grantedAt: new Date('2026-01-01T10:00:00.000Z') }
+        ]
+    };
+
+    assert.equal(courseUserHasEnrolment(noDeadline, '9876543210', afterItClosed), false);
+
+    // An open course is everyone's, and never ends.
+    assert.equal(courseUserHasEnrolment({ isOpenToAll: true }, '9876543210', afterItClosed), true);
+});
+
+test('a part day left on a custom expiry still counts as a day', () => {
+    const course = {
+        duration: '3',
+        accessGrants: [
+            {
+                phone: '9876543210',
+                grantedAt: new Date('2026-01-01T10:00:00.000Z'),
+                expiresAt: new Date('2026-02-10T18:30:00.000Z')
+            }
+        ]
+    };
+
+    assert.equal(
+        getCourseAccessWindow(course, '9876543210', new Date('2026-02-10T09:00:00.000Z')).daysRemaining,
+        1
+    );
+    assert.equal(
+        getCourseAccessWindow(course, '9876543210', new Date('2026-02-09T09:00:00.000Z')).daysRemaining,
+        2
+    );
 });

@@ -471,15 +471,27 @@ const getUtcStartOfDay = (value) => {
 const addDays = (date, days) => new Date(date.getTime() + (days * MILLISECONDS_PER_DAY));
 
 // The one place a grant turns into a deadline, so the window shown on a course and
-// the enrolment counted on an account can never name a different day.
-const getGrantEndsAt = (startsAt, durationDays) => (
-    startsAt && durationDays ? addDays(startsAt, durationDays) : null
-);
+// the enrolment counted on an account can never name a different day. An expiry set by
+// hand on the grant is that deadline outright: it replaces the course duration rather
+// than being weighed against it, which is what makes a single user's window able to
+// outlast or fall short of everyone else's on the same course.
+const getGrantEndsAt = (course, grant) => {
+    if (grant?.expiresAt) {
+        return grant.expiresAt;
+    }
 
-// A grant runs up to the start of endsAt, so the days left on it are counted from the
-// start of today: a window ending tomorrow still has today to be used and reads as one
-// day, and one ending today has already run out. Counting whole UTC days is what lets
-// this answer the same number all day instead of sliding with the clock.
+    const startsAt = getUtcStartOfDay(grant?.grantedAt);
+    const durationDays = getCourseDurationDays(getCourseDurationMonths(course));
+
+    return startsAt && durationDays ? addDays(startsAt, durationDays) : null;
+};
+
+// A grant runs up to endsAt, so the days left on it are counted from the start of today:
+// a window ending tomorrow still has today to be used and reads as one day, and one
+// ending today has already run out. Counting whole UTC days is what lets this answer the
+// same number all day instead of sliding with the clock. A hand-set expiry can land part
+// way through a day, and that part still belongs to the person holding it, so it is
+// rounded up — a deadline that falls on midnight is a whole number either way.
 const getAccessDaysRemaining = (endsAt, now) => {
     const startOfToday = getUtcStartOfDay(now);
 
@@ -487,7 +499,7 @@ const getAccessDaysRemaining = (endsAt, now) => {
         return null;
     }
 
-    return Math.max(0, Math.round((endsAt.getTime() - startOfToday.getTime()) / MILLISECONDS_PER_DAY));
+    return Math.max(0, Math.ceil((endsAt.getTime() - startOfToday.getTime()) / MILLISECONDS_PER_DAY));
 };
 
 const formatDateOnly = (value) => {
@@ -515,7 +527,10 @@ const getCourseAccessGrants = (course) => {
 
         grantMap.set(phone, {
             phone,
-            grantedAt: parseDateValue(grant?.grantedAt) || fallbackGrantedAt
+            grantedAt: parseDateValue(grant?.grantedAt) || fallbackGrantedAt,
+            // Guarded rather than parsed straight, because an unset expiry reads as
+            // null and a bare Date(null) is the epoch, not an absent value.
+            expiresAt: grant?.expiresAt ? parseDateValue(grant.expiresAt) : null
         });
     });
 
@@ -528,7 +543,8 @@ const getCourseAccessGrants = (course) => {
 
         grantMap.set(phone, {
             phone,
-            grantedAt: fallbackGrantedAt
+            grantedAt: fallbackGrantedAt,
+            expiresAt: null
         });
     });
 
@@ -550,16 +566,41 @@ const buildCourseAccessGrants = (course, phones, options = {}) => {
 
         return {
             phone,
-            grantedAt: shouldResetGrantDate ? grantedAt : existingGrant.grantedAt
+            grantedAt: shouldResetGrantDate ? grantedAt : existingGrant.grantedAt,
+            // Restarting someone's clock starts it clean: a hand-set expiry overrode the
+            // window that was running, and keeping it would let a date already gone by
+            // shut out the very grant that was just renewed.
+            expiresAt: shouldResetGrantDate ? null : existingGrant.expiresAt
         };
     });
 };
 
-const setCourseAccessPhones = (course, phones, options = {}) => {
-    const allowedUserPhones = normalizePhoneArray(phones);
+// The two access fields are written as a pair and never apart, so the list a query
+// matches on and the grants the dates are read off cannot drift out of step.
+const writeCourseAccessGrants = (course, grants) => {
+    course.accessGrants = grants;
+    course.allowedUserPhones = grants.map((grant) => grant.phone);
+};
 
-    course.allowedUserPhones = allowedUserPhones;
-    course.accessGrants = buildCourseAccessGrants(course, allowedUserPhones, options);
+const setCourseAccessPhones = (course, phones, options = {}) => {
+    // Built before anything is written, so a phone that is new to the course is read as
+    // new and starts today rather than inheriting the date the course was created.
+    writeCourseAccessGrants(course, buildCourseAccessGrants(course, phones, options));
+};
+
+// A grant given a deadline of its own; passing null puts that person back on the
+// course's clock. Returns the named phones that hold no grant to give access to.
+const setCourseAccessExpiry = (course, phones, expiresAt) => {
+    const targetPhones = new Set(normalizePhoneArray(phones));
+    const grants = getCourseAccessGrants(course);
+
+    writeCourseAccessGrants(course, grants.map((grant) => (
+        targetPhones.has(grant.phone) ? { ...grant, expiresAt } : grant
+    )));
+
+    const grantedPhones = new Set(grants.map((grant) => grant.phone));
+
+    return [...targetPhones].filter((phone) => !grantedPhones.has(phone));
 };
 
 const addCourseAccessPhones = (course, phones) => {
@@ -623,25 +664,28 @@ const getCourseAccessWindow = (course, userPhone, now = new Date()) => {
         return null;
     }
 
-    const durationMonths = getCourseDurationMonths(course);
-    const durationDays = getCourseDurationDays(durationMonths);
-    const startsAt = getUtcStartOfDay(accessGrant.grantedAt);
-    const endsAt = getGrantEndsAt(startsAt, durationDays);
+    const endsAt = getGrantEndsAt(course, accessGrant);
 
     if (!endsAt) {
         return null;
     }
 
+    // A hand-set expiry answers the deadline on its own, so the course duration is not
+    // reported alongside it — it is no longer what this window is made of, and a course
+    // that never had one can still close on the date it was given.
+    const isCustomExpiry = Boolean(accessGrant.expiresAt);
+    const durationMonths = isCustomExpiry ? null : getCourseDurationMonths(course);
+    const startsAt = getUtcStartOfDay(accessGrant.grantedAt);
     const currentTime = parseDateValue(now) || new Date();
 
     return {
-        type: 'assigned',
+        type: isCustomExpiry ? 'custom' : 'assigned',
         startsAt,
         startsOn: formatDateOnly(startsAt),
         endsAt,
         endsOn: formatDateOnly(endsAt),
         durationMonths,
-        durationDays,
+        durationDays: isCustomExpiry ? null : getCourseDurationDays(durationMonths),
         daysRemaining: getAccessDaysRemaining(endsAt, currentTime),
         isExpired: currentTime.getTime() >= endsAt.getTime()
     };
@@ -659,10 +703,8 @@ const collectActiveUserPhones = (courses, now = new Date()) => {
             return;
         }
 
-        const durationDays = getCourseDurationDays(getCourseDurationMonths(course));
-
         getCourseAccessGrants(course).forEach((grant) => {
-            const endsAt = getGrantEndsAt(getUtcStartOfDay(grant.grantedAt), durationDays);
+            const endsAt = getGrantEndsAt(course, grant);
 
             if (endsAt && currentTime.getTime() < endsAt.getTime()) {
                 activePhones.add(grant.phone);
@@ -1272,6 +1314,20 @@ const getAccessPhonesFieldValue = (body = {}) => {
     return undefined;
 };
 
+// An empty expiry is the way custom expiry is taken off again rather than a bad
+// request, so a cleared field and a missing one both mean "use the course duration".
+const parseAccessExpiryValue = (value) => {
+    if (value === undefined || value === null || value === '') {
+        return { expiresAt: null };
+    }
+
+    const expiresAt = parseDateValue(value);
+
+    return expiresAt
+        ? { expiresAt }
+        : { error: 'Custom expiry must be a valid date and time' };
+};
+
 const getUserCourseLookupQuery = (courseIdOrSlug) => {
     const value = String(courseIdOrSlug || '').trim();
 
@@ -1283,21 +1339,33 @@ const getUserCourseLookupQuery = (courseIdOrSlug) => {
     return slug ? { slug } : null;
 };
 
+// Two questions get asked about the same grant, and they are not the same question.
+// Whether the course is this account's at all is answered by having a window — the
+// catalogue asks that, so a course whose days have run out keeps its place on the shelf
+// and can say who to ask for more time. Whether it opens is answered by still being
+// inside that window, which is what everything serving content asks. A course that hands
+// out no window at all — never granted, or granted with no deadline to be inside of — is
+// neither, so it stays off the shelf exactly as it always has.
+const courseUserHasEnrolment = (course, userPhone, options = {}) => (
+    Boolean(getCourseAccessWindow(course, userPhone, options.now))
+);
+
 const courseUserHasAccess = (course, userPhone, options = {}) => {
-    const normalizedUserPhone = normalizePhone(userPhone);
-
-    if (!normalizedUserPhone) {
-        return false;
-    }
-
-    if (course?.isOpenToAll) {
-        return true;
-    }
-
-    const accessWindow = getCourseAccessWindow(course, normalizedUserPhone, options.now);
+    const accessWindow = getCourseAccessWindow(course, userPhone, options.now);
 
     return Boolean(accessWindow && !accessWindow.isExpired);
 };
+
+// The two refusals are not the same news, and only one of them has something to be done
+// about it, so a link opened past its deadline is told the window closed and who reopens
+// it rather than being told the course was never theirs.
+const sendCourseAccessDenied = (res, course, userPhone) => sendError(
+    res,
+    403,
+    courseUserHasEnrolment(course, userPhone)
+        ? 'Your access to this course has ended. Contact the admin for more time on it.'
+        : 'You do not have access to this course'
+);
 
 const getNextChapterOrder = async (courseId) => {
     const lastChapter = await Chapter.findOne({ courseId }).sort({ order: -1 }).select('order');
@@ -1381,6 +1449,10 @@ const getUserCoursesByAdmin = async (req, res) => {
                     _id: course._id.toString(),
                     title: course.title,
                     accessEndsOn: accessWindow?.endsOn || '',
+                    // Enough for the deadline to be read back the way it was set: a
+                    // hand-set one carries a time of day that a date alone would drop.
+                    accessType: accessWindow?.type || '',
+                    accessEndsAt: accessWindow?.endsAt || null,
                     // A course whose duration was never set has no deadline to be
                     // inside of, so it reads as ended here exactly as it fails to
                     // make its account active.
@@ -1696,6 +1768,61 @@ const removeCourseAccessByAdmin = async (req, res) => {
     }
 };
 
+// Optional per-user override of when a course closes. Only grants that already exist can
+// carry one, so this never grants access as a side effect of dating it.
+const setCourseAccessExpiryByAdmin = async (req, res) => {
+    try {
+        const { courseId } = req.params;
+
+        if (!isValidObjectId(courseId)) {
+            return sendError(res, 400, 'Invalid course id');
+        }
+
+        const body = req.body || {};
+        const phones = normalizePhoneArray(getAccessPhonesFieldValue(body));
+
+        if (!phones.length) {
+            return sendError(res, 400, 'At least one phone is required');
+        }
+
+        const { expiresAt, error: expiryError } = parseAccessExpiryValue(body.expiresAt);
+
+        if (expiryError) {
+            return sendError(res, 400, expiryError);
+        }
+
+        const course = await Course.findById(courseId);
+
+        if (!course) {
+            return sendError(res, 404, 'Course not found');
+        }
+
+        const ungrantedPhones = setCourseAccessExpiry(course, phones, expiresAt);
+
+        if (ungrantedPhones.length) {
+            return sendError(
+                res,
+                404,
+                ungrantedPhones.length === 1
+                    ? `${ungrantedPhones[0]} does not have access to this course`
+                    : `These phones do not have access to this course: ${ungrantedPhones.join(', ')}`
+            );
+        }
+
+        await course.save();
+
+        return res.status(200).json({
+            success: true,
+            message: expiresAt
+                ? 'Custom expiry updated successfully'
+                : 'Custom expiry removed successfully',
+            data: formatCourseAccessResponse(course)
+        });
+    } catch (error) {
+        return sendError(res, 500, 'Something went wrong while updating custom expiry');
+    }
+};
+
 const deleteCourseByAdmin = async (req, res) => {
     try {
         const { courseId } = req.params;
@@ -1994,14 +2121,17 @@ const getCoursesByUser = async (req, res) => {
                 { 'accessGrants.phone': userPhone }
             ]
         }).sort({ createdAt: -1 });
-        const accessibleCourses = courses.filter((course) => courseUserHasAccess(course, userPhone));
-        const courseCounts = await getCourseCounts(accessibleCourses.map((course) => course._id));
+        // Ended enrolments are sent too, each carrying the deadline it closed on: a
+        // student who cannot find a course they paid for reads it as the site losing it,
+        // so it stays visible and says for itself that it needs the admin to reopen.
+        const enrolledCourses = courses.filter((course) => courseUserHasEnrolment(course, userPhone));
+        const courseCounts = await getCourseCounts(enrolledCourses.map((course) => course._id));
 
         return res.status(200).json({
             success: true,
             message: 'Courses fetched successfully',
             data: {
-                courses: accessibleCourses.map((course) => formatCourseData(
+                courses: enrolledCourses.map((course) => formatCourseData(
                     course,
                     courseCounts.get(course._id.toString()) || {},
                     {
@@ -2041,7 +2171,7 @@ const getCourseByUser = async (req, res) => {
         }
 
         if (!courseUserHasAccess(course, userPhone)) {
-            return sendError(res, 403, 'You do not have access to this course');
+            return sendCourseAccessDenied(res, course, userPhone);
         }
 
         const chapters = await Chapter.find({ courseId: course._id }).sort({ order: 1, createdAt: 1 });
@@ -2098,7 +2228,7 @@ const saveCourseProgressByUser = async (req, res) => {
         }
 
         if (!courseUserHasAccess(course, userPhone)) {
-            return sendError(res, 403, 'You do not have access to this course');
+            return sendCourseAccessDenied(res, course, userPhone);
         }
 
         return await saveLastWatchedVideo(res, {
@@ -2147,7 +2277,7 @@ const getCourseVideoEmbedByUser = async (req, res) => {
         }
 
         if (!courseUserHasAccess(course, userPhone)) {
-            return sendError(res, 403, 'You do not have access to this course');
+            return sendCourseAccessDenied(res, course, userPhone);
         }
 
         const chapter = await Chapter.findOne({
@@ -2354,6 +2484,7 @@ module.exports = {
     replaceCourseAccessByAdmin,
     addCourseAccessByAdmin,
     removeCourseAccessByAdmin,
+    setCourseAccessExpiryByAdmin,
     deleteCourseByAdmin,
     getChaptersByAdmin,
     createChapterByAdmin,
@@ -2372,6 +2503,7 @@ module.exports = {
     normalizePhoneArray,
     parseVideoKey,
     courseUserHasAccess,
+    courseUserHasEnrolment,
     parseCourseDurationMonths,
     getCourseDurationDays,
     getCourseAccessWindow,

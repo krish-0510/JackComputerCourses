@@ -1,10 +1,13 @@
 import axios from 'axios'
+import { ArrowLeft, FileText, Users } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
+import AdminChapterDetail from '../../Components/Admin/AdminChapterDetail'
 import AdminChapterForm from '../../Components/Admin/AdminChapterForm'
 import AdminChapterList from '../../Components/Admin/AdminChapterList'
 import AdminCourseSummary from '../../Components/Admin/AdminCourseSummary'
 import AdminNavbar from '../../Components/Admin/AdminNavbar'
+import PageBanner from '../../Components/Common/PageBanner'
 import PageTour from '../../Components/Tour/PageTour'
 import getAdminCoursePageTour from '../Tour/Admin/AdminCoursePageTour'
 import { useAuth } from '../../Context/AuthContext'
@@ -12,6 +15,12 @@ import { useConfirm } from '../../Context/ConfirmContext'
 import { sumChapterDurationSeconds } from '../../utils/courseDuration'
 
 const API_BASE_URL = import.meta.env.VITE_BASE_URL
+
+// The page is pinned to the viewport, so every control on it is sized for a strip rather
+// than for a column that could have gone on growing.
+const HEADER_LINK_CLASS = 'inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-indigo-700 dark:hover:text-indigo-300'
+
+const PANEL_CLASS = 'flex min-h-0 flex-1 flex-col items-center justify-center gap-4 rounded-2xl border border-slate-200 bg-white px-6 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900'
 
 const emptyChapterForm = {
   name: '',
@@ -79,7 +88,10 @@ const Course = () => {
   const [loadingCourse, setLoadingCourse] = useState(true)
   const [chapterForm, setChapterForm] = useState(emptyChapterForm)
   const [editingChapterId, setEditingChapterId] = useState('')
+  const [isChapterFormOpen, setIsChapterFormOpen] = useState(false)
+  const [selectedChapterId, setSelectedChapterId] = useState('')
   const [error, setError] = useState('')
+  const [formError, setFormError] = useState('')
   const [success, setSuccess] = useState('')
   const [savingChapter, setSavingChapter] = useState(false)
   const [deletingChapterId, setDeletingChapterId] = useState('')
@@ -89,6 +101,19 @@ const Course = () => {
     () => chapters.find((chapter) => chapter._id === editingChapterId) || null,
     [chapters, editingChapterId],
   )
+
+  // Nothing is picked until somebody picks it: the course opens on the list of chapters
+  // rather than on whichever one happens to be first. Reading the selection back out of the
+  // list rather than keeping it in step by hand is also what empties the panel again when
+  // the chapter it was showing is deleted.
+  const selectedChapter = useMemo(
+    () => chapters.find((chapter) => chapter._id === selectedChapterId) || null,
+    [chapters, selectedChapterId],
+  )
+
+  // One request at a time against the chapters: whichever of them is mid-delete or mid-sync
+  // holds the controls on the rest of them still until it comes back.
+  const chapterActionsDisabled = Boolean(deletingChapterId) || Boolean(syncingChapterId)
 
   const setCourseAndChapters = useCallback((nextCourse, nextChapters) => {
     const sortedChapters = sortChapters(nextChapters || [])
@@ -201,37 +226,43 @@ const Course = () => {
     }))
   }
 
-  const cancelEditingChapter = () => {
-    setEditingChapterId('')
-    setChapterForm(emptyChapterForm)
+  // One dialog for both jobs: opening it with a chapter fills the fields from it, opening
+  // it without one leaves them empty.
+  const openChapterForm = (chapter) => {
+    resetMessages()
+    setFormError('')
+    setEditingChapterId(chapter?._id || '')
+    setChapterForm(chapter ? getChapterForm(chapter) : emptyChapterForm)
+    setIsChapterFormOpen(true)
   }
 
-  const startEditingChapter = (chapter) => {
-    resetMessages()
-    setEditingChapterId(chapter._id)
-    setChapterForm(getChapterForm(chapter))
+  const closeChapterForm = () => {
+    setIsChapterFormOpen(false)
+    setEditingChapterId('')
+    setChapterForm(emptyChapterForm)
+    setFormError('')
   }
 
   const handleSaveChapter = async (event) => {
     event.preventDefault()
-    resetMessages()
+    setFormError('')
 
     const name = chapterForm.name.trim()
     const playlistUrl = chapterForm.playlistUrl.trim()
     const order = parseChapterOrder(chapterForm.order)
 
     if (!name) {
-      setError('Chapter name is required.')
+      setFormError('Chapter name is required.')
       return
     }
 
     if (!playlistUrl) {
-      setError('YouTube playlist link is required.')
+      setFormError('YouTube playlist link is required.')
       return
     }
 
     if (order === null) {
-      setError('Chapter order must be a non-negative integer.')
+      setFormError('Chapter order must be a non-negative integer.')
       return
     }
 
@@ -267,15 +298,21 @@ const Course = () => {
             chapter._id === editingChapterId ? savedChapter : chapter
           ))
           : [...chapters, savedChapter])
+
+        // A new chapter is what the dialog closes onto, wherever in the order it landed.
+        // An edit is not: renaming one from the rail should not pull the panel off
+        // whichever chapter was open behind the dialog.
+        if (!isEditing) {
+          setSelectedChapterId(savedChapter._id)
+        }
       } else {
         await fetchCourse()
       }
 
-      setChapterForm(emptyChapterForm)
-      setEditingChapterId('')
+      closeChapterForm()
       setSuccess(isEditing ? 'Chapter updated successfully.' : 'Chapter created successfully.')
     } catch (saveError) {
-      setError(getErrorMessage(saveError, 'Unable to save chapter. Please try again.'))
+      setFormError(getErrorMessage(saveError, 'Unable to save chapter. Please try again.'))
     } finally {
       setSavingChapter(false)
     }
@@ -308,11 +345,6 @@ const Course = () => {
       }
 
       updateChapters(chapters.filter((currentChapter) => currentChapter._id !== chapter._id))
-
-      if (editingChapterId === chapter._id) {
-        cancelEditingChapter()
-      }
-
       setSuccess('Chapter deleted successfully.')
     } catch (deleteError) {
       setError(getErrorMessage(deleteError, 'Unable to delete chapter. Please try again.'))
@@ -366,84 +398,109 @@ const Course = () => {
     return <Navigate to="/login" replace />
   }
 
+  const backToCourses = (
+    <Link to="/admin/courses" className={HEADER_LINK_CLASS}>
+      <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+      Back to courses
+    </Link>
+  )
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans">
+    // The page itself never scrolls: it is pinned to the viewport, and the chapter rail and
+    // the panel beside it take their own scrollbars.
+    <div className="flex h-dvh flex-col overflow-hidden bg-slate-50 dark:bg-slate-950 font-sans">
       <AdminNavbar />
 
-      <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="mb-6 flex flex-wrap items-center gap-3">
-          <Link
-            to="/admin/courses"
-            className="inline-flex rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:border-indigo-300 dark:hover:border-indigo-700 hover:text-indigo-700 dark:hover:text-indigo-300"
-          >
-            Back to courses
-          </Link>
-          {course && !course.isOpenToAll ? (
-            <Link
-              to={`/admin/courses/${courseId}/access`}
-              data-tour="admin-course-access"
-              className="inline-flex rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
-            >
-              User Access
-            </Link>
-          ) : null}
-          {course ? (
-            <Link
-              to={`/admin/courses/${courseId}/notes`}
-              data-tour="admin-course-notes"
-              className="inline-flex rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500"
-            >
-              Manage Notes
-            </Link>
-          ) : null}
-
-          {/* Held back until the course is read: which stops the walkthrough has
-              depends on whether this one is open to all. */}
-          {course ? (
-            <PageTour
-              steps={getAdminCoursePageTour({ canManageAccess: !course.isOpenToAll })}
-            />
-          ) : null}
-        </div>
-
+      <main className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col gap-3 px-4 py-4 sm:px-6 lg:px-8">
         {loadingCourse ? (
-          <div className="rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-12 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">
-            Loading course...
+          <div className={PANEL_CLASS}>
+            <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Loading course...</p>
           </div>
         ) : course ? (
           <>
-            <AdminCourseSummary course={course} />
+            <AdminCourseSummary course={course}>
+              {backToCourses}
 
-            <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
-              <AdminChapterForm
-                chapterForm={chapterForm}
-                editingChapter={editingChapter}
-                error={error}
-                savingChapter={savingChapter}
-                success={success}
-                onCancel={cancelEditingChapter}
-                onChange={handleChapterFormChange}
-                onSubmit={handleSaveChapter}
+              {!course.isOpenToAll ? (
+                <Link
+                  to={`/admin/courses/${courseId}/access`}
+                  data-tour="admin-course-access"
+                  className={HEADER_LINK_CLASS}
+                >
+                  <Users className="h-3.5 w-3.5" aria-hidden="true" />
+                  User Access
+                </Link>
+              ) : null}
+
+              <Link
+                to={`/admin/courses/${courseId}/notes`}
+                data-tour="admin-course-notes"
+                className={HEADER_LINK_CLASS}
+              >
+                <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+                Manage Notes
+              </Link>
+
+              {/* Which stops the walkthrough has depends on whether this course is open
+                  to all, so it is only built once the course has been read. */}
+              <PageTour
+                className={HEADER_LINK_CLASS}
+                steps={getAdminCoursePageTour({ canManageAccess: !course.isOpenToAll })}
               />
+            </AdminCourseSummary>
 
+            {error ? (
+              <PageBanner tone="error" message={error} onDismiss={() => setError('')} className="shrink-0" />
+            ) : null}
+
+            {success ? (
+              <PageBanner tone="success" message={success} onDismiss={() => setSuccess('')} className="shrink-0" />
+            ) : null}
+
+            {/* Below a large screen the two panels stack and this grid takes the scrollbar,
+                so the page behind it still never grows one. */}
+            <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)] lg:overflow-hidden">
               <AdminChapterList
                 chapters={chapters}
+                actionsDisabled={chapterActionsDisabled}
                 deletingChapterId={deletingChapterId}
-                editingChapterId={editingChapterId}
-                savingChapter={savingChapter}
-                syncingChapterId={syncingChapterId}
+                selectedChapterId={selectedChapterId}
+                onCreateChapter={() => openChapterForm(null)}
                 onDeleteChapter={handleDeleteChapter}
-                onEditChapter={startEditingChapter}
+                onEditChapter={openChapterForm}
+                onSelectChapter={setSelectedChapterId}
+              />
+
+              <AdminChapterDetail
+                chapter={selectedChapter}
+                hasChapters={chapters.length > 0}
+                isSyncing={syncingChapterId === selectedChapter?._id}
+                actionsDisabled={chapterActionsDisabled}
                 onSyncChapter={handleSyncChapter}
               />
             </div>
           </>
         ) : (
-          <div className="rounded-lg border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 px-6 py-12 text-center text-sm font-semibold text-red-700 dark:text-red-300">
-            Course not found.
+          <div className={PANEL_CLASS}>
+            <p className="text-sm font-semibold text-red-700 dark:text-red-300">
+              {error || 'Course not found.'}
+            </p>
+            {backToCourses}
           </div>
         )}
       </main>
+
+      {isChapterFormOpen ? (
+        <AdminChapterForm
+          chapterForm={chapterForm}
+          editingChapter={editingChapter}
+          error={formError}
+          savingChapter={savingChapter}
+          onChange={handleChapterFormChange}
+          onClose={closeChapterForm}
+          onSubmit={handleSaveChapter}
+        />
+      ) : null}
     </div>
   )
 }

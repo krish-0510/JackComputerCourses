@@ -8,6 +8,7 @@ const {
     replaceCourseAccessByAdmin,
     addCourseAccessByAdmin,
     removeCourseAccessByAdmin,
+    setCourseAccessExpiryByAdmin,
     deleteCourseByAdmin,
     getChaptersByAdmin,
     createChapterByAdmin,
@@ -30,6 +31,7 @@ router.post('/', createCourseByAdmin);
 router.get('/:courseId/access', getCourseAccessByAdmin);
 router.put('/:courseId/access', replaceCourseAccessByAdmin);
 router.post('/:courseId/access', addCourseAccessByAdmin);
+router.patch('/:courseId/access', setCourseAccessExpiryByAdmin);
 router.delete('/:courseId/access', removeCourseAccessByAdmin);
 router.get('/:courseId', getCourseByAdmin);
 router.patch('/:courseId', updateCourseByAdmin);

@@ -23,6 +23,18 @@ export const USER_STATUS_META = {
 
 export const getUserStatus = (user) => (user?.isActive ? 'active' : 'inactive')
 
+// Being blocked runs across the standing above rather than replacing it: an account can be
+// inside a running course window and still be barred from signing in, and the tabs above a
+// roster are about enrolment, not about who may log in. So it is read as its own flag and
+// shown beside the standing — decided here, so every screen says it the same way.
+export const isUserBlocked = (user) => Boolean(user?.isBanned)
+
+export const USER_BLOCKED_META = {
+  label: 'Blocked',
+  hint: 'Cannot log in until the admin unblocks this account',
+  className: 'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-300',
+}
+
 export const filterUsersByStatus = (users, status) => (
   status === 'all' ? users : users.filter((user) => getUserStatus(user) === status)
 )

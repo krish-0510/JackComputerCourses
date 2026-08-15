@@ -1,10 +1,13 @@
 import axios from 'axios'
+import { CalendarClock } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
+import AdminCustomExpiryModal from '../../Components/Admin/AdminCustomExpiryModal'
 import AdminNavbar from '../../Components/Admin/AdminNavbar'
 import PageTour from '../../Components/Tour/PageTour'
 import getAdminCourseAccessPageTour from '../Tour/Admin/AdminCourseAccessPageTour'
 import { useAuth } from '../../Context/AuthContext'
+import { formatAccessEnd } from '../../utils/courseAccess'
 
 const API_BASE_URL = import.meta.env.VITE_BASE_URL
 
@@ -28,22 +31,6 @@ const parsePhoneInput = (value) => (
     .map((phone) => phone.trim())
     .filter(Boolean)
 )
-
-const formatAccessDate = (value) => {
-  const dateValue = String(value || '').slice(0, 10)
-  const [year, month, day] = dateValue.split('-').map(Number)
-
-  if (!year || !month || !day) {
-    return ''
-  }
-
-  return new Intl.DateTimeFormat(undefined, {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(Date.UTC(year, month - 1, day)))
-}
 
 const buildAccessGrantList = (data = {}) => {
   const accessGrants = Array.isArray(data.accessGrants) ? data.accessGrants : []
@@ -73,6 +60,7 @@ const CourseAccessPage = () => {
   const [loadingAccess, setLoadingAccess] = useState(true)
   const [phoneInput, setPhoneInput] = useState('')
   const [busyAccessKey, setBusyAccessKey] = useState('')
+  const [expiryPhone, setExpiryPhone] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -90,6 +78,7 @@ const CourseAccessPage = () => {
           _id: matchingUser?._id || normalizedPhone,
           name: matchingUser?.name || '',
           phone: matchingUser?.phone || normalizedPhone,
+          accessType: grant.accessType || '',
           accessEndsAt: grant.accessEndsAt || null,
           accessEndsOn: grant.accessEndsOn || '',
           isAccessExpired: Boolean(grant.isAccessExpired),
@@ -98,6 +87,12 @@ const CourseAccessPage = () => {
       .filter((user) => user.phone)
       .sort(sortUsers)
   ), [accessGrants, users])
+
+  // Held as a phone rather than as the row itself, so the dialog re-reads the grant it is
+  // open on after a save and shows what was actually stored instead of what was sent.
+  const expiryUser = useMemo(() => (
+    accessUsers.find((user) => normalizePhone(user.phone) === expiryPhone) || null
+  ), [accessUsers, expiryPhone])
 
   const availableUsers = useMemo(() => (
     users
@@ -269,6 +264,39 @@ const CourseAccessPage = () => {
       setSuccess('Course access removed successfully.')
     } catch (removeError) {
       setError(getErrorMessage(removeError, 'Unable to remove course access. Please try again.'))
+    } finally {
+      setBusyAccessKey('')
+    }
+  }
+
+  const saveCustomExpiry = async (phone, expiresAt) => {
+    const normalizedPhone = normalizePhone(phone)
+
+    if (!normalizedPhone) {
+      return
+    }
+
+    resetMessages()
+    setBusyAccessKey(`expiry:${normalizedPhone}`)
+
+    try {
+      const response = await axios.patch(
+        `${API_BASE_URL}/admin/courses/${courseId}/access`,
+        { phone: normalizedPhone, expiresAt },
+        { withCredentials: true },
+      )
+
+      if (!response.data?.success) {
+        throw new Error(response.data?.message || 'Unable to update custom expiry')
+      }
+
+      applyAccessData(response.data?.data)
+      setExpiryPhone('')
+      setSuccess(expiresAt
+        ? `Custom expiry set for ${normalizedPhone}.`
+        : `Custom expiry removed for ${normalizedPhone}.`)
+    } catch (expiryError) {
+      setError(getErrorMessage(expiryError, 'Unable to update custom expiry. Please try again.'))
     } finally {
       setBusyAccessKey('')
     }
@@ -464,6 +492,9 @@ const CourseAccessPage = () => {
                         <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                           Access Ends
                         </th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          Custom Expiry
+                        </th>
                         <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                           Actions
                         </th>
@@ -471,9 +502,11 @@ const CourseAccessPage = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
                       {accessUsers.map((user) => {
-                        const removeKey = `remove:${normalizePhone(user.phone)}`
+                        const normalizedPhone = normalizePhone(user.phone)
+                        const removeKey = `remove:${normalizedPhone}`
                         const userName = getUserName(user)
-                        const accessEndDate = formatAccessDate(user.accessEndsOn || user.accessEndsAt)
+                        const accessEndDate = formatAccessEnd(user)
+                        const hasCustomExpiry = user.accessType === 'custom'
 
                         return (
                           <tr key={user._id}>
@@ -497,7 +530,30 @@ const CourseAccessPage = () => {
                                     Expired
                                   </span>
                                 ) : null}
+                                {/* Which clock this row is on, so a date that does not match
+                                    the course duration reads as deliberate rather than wrong. */}
+                                {hasCustomExpiry ? (
+                                  <span className="w-fit rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-semibold text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300">
+                                    Custom
+                                  </span>
+                                ) : null}
                               </div>
+                            </td>
+                            <td className="px-6 py-4 align-top">
+                              <button
+                                type="button"
+                                onClick={() => setExpiryPhone(normalizedPhone)}
+                                disabled={Boolean(busyAccessKey)}
+                                title="Custom Expiry"
+                                aria-label={`Custom Expiry for ${userName || user.phone}`}
+                                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition disabled:cursor-not-allowed disabled:text-slate-400 dark:disabled:text-slate-600 ${
+                                  hasCustomExpiry
+                                    ? 'border-indigo-300 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:border-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:bg-indigo-950/60'
+                                    : 'border-slate-300 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:border-indigo-700 dark:hover:text-indigo-300'
+                                }`}
+                              >
+                                <CalendarClock className="h-4 w-4" />
+                              </button>
                             </td>
                             <td className="px-6 py-4 align-top">
                               <div className="flex justify-end">
@@ -526,6 +582,17 @@ const CourseAccessPage = () => {
           </div>
         )}
       </main>
+
+      {expiryUser ? (
+        <AdminCustomExpiryModal
+          key={expiryPhone}
+          user={expiryUser}
+          courseTitle={course?.title || ''}
+          busy={busyAccessKey === `expiry:${expiryPhone}`}
+          onSubmit={(expiresAt) => saveCustomExpiry(expiryPhone, expiresAt)}
+          onClose={() => setExpiryPhone('')}
+        />
+      ) : null}
     </div>
   )
 }

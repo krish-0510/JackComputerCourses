@@ -16,6 +16,12 @@ const accessGrantSchema = new mongoose.Schema({
         type: Date,
         required: true,
         default: Date.now
+    },
+    // A deadline set by hand for this one person, which stands in for the course
+    // duration counted off grantedAt. Left null, the course's own clock applies.
+    expiresAt: {
+        type: Date,
+        default: null
     }
 }, {
     _id: false

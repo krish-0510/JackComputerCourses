@@ -12,7 +12,8 @@ import UserCourseCard from '../../Components/User/UserCourseCard'
 import UserNavbar from '../../Components/User/UserNavbar'
 import userCoursesPageTour from '../Tour/User/UserCoursesPageTour'
 import { useAuth } from '../../Context/AuthContext'
-import { getCourseExpiryWarning } from '../../utils/courseAccess'
+import { getCourseExpirySummaries } from '../../utils/courseAccess'
+import { useCourseAccessEndedPrompt } from '../../utils/courseAccessPrompt'
 
 const API_BASE_URL = import.meta.env.VITE_BASE_URL
 
@@ -24,6 +25,7 @@ const isAuthError = (error) => [401, 403].includes(error?.response?.status)
 
 const UserCoursesPage = () => {
   const { auth, clearAuth, setAuth } = useAuth()
+  const promptAccessEnded = useCourseAccessEndedPrompt()
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [isAuthorized, setIsAuthorized] = useState(false)
   const [courses, setCourses] = useState([])
@@ -36,35 +38,15 @@ const UserCoursesPage = () => {
     [courses, courseFilters],
   )
 
-  // Read off every course rather than the filtered grid: a deadline does not stop
-  // mattering because a search is narrowing the page, and the soonest one is the one
-  // worth leading with.
-  const expirySummary = useMemo(() => {
-    const expiringCourses = courses
-      .map((course) => ({ course, warning: getCourseExpiryWarning(course) }))
-      .filter((entry) => entry.warning)
-      .sort((first, second) => first.warning.daysRemaining - second.warning.daysRemaining)
+  // What is already closed and what is about to close, each said once above the grid.
+  const expirySummaries = useMemo(() => getCourseExpirySummaries(courses), [courses])
 
-    if (!expiringCourses.length) {
-      return null
-    }
-
-    const [mostUrgent] = expiringCourses
-
-    if (expiringCourses.length === 1) {
-      return {
-        warning: mostUrgent.warning,
-        title: `${mostUrgent.course.title}: ${mostUrgent.warning.chipLabel.toLowerCase()}`,
-        detail: mostUrgent.warning.detail,
-      }
-    }
-
-    return {
-      warning: mostUrgent.warning,
-      title: `${expiringCourses.length} of your courses are ending soon`,
-      detail: `${mostUrgent.course.title} is the first to close (${mostUrgent.warning.chipLabel.toLowerCase()}).`,
-    }
-  }, [courses])
+  // A banner that has been read is in the way, so it can be put away for the visit. What
+  // was dismissed is remembered by the sentence it said rather than by which banner it was,
+  // so news — another course ending, a deadline moving up a step — is raised again instead
+  // of being swallowed by an earlier dismissal.
+  const [dismissedNotices, setDismissedNotices] = useState(() => new Set())
+  const visibleSummaries = expirySummaries.filter((summary) => !dismissedNotices.has(summary.title))
 
   const fetchCourses = useCallback(async (options = {}) => {
     const shouldUpdate = options.shouldUpdate || (() => true)
@@ -211,14 +193,16 @@ const UserCoursesPage = () => {
           </div>
         ) : null}
 
-        {!loadingCourses && expirySummary ? (
+        {!loadingCourses ? visibleSummaries.map((summary) => (
           <CourseExpiryNotice
-            warning={expirySummary.warning}
-            title={expirySummary.title}
-            detail={expirySummary.detail}
+            key={summary.title}
+            warning={summary.warning}
+            title={summary.title}
+            detail={summary.detail}
             className="mb-6"
+            onDismiss={() => setDismissedNotices((current) => new Set(current).add(summary.title))}
           />
-        ) : null}
+        )) : null}
 
         {!loadingCourses && courses.length ? (
           <CourseCatalogControls
@@ -243,6 +227,7 @@ const UserCoursesPage = () => {
                   course={course}
                   dataTour={index ? undefined : 'course-card'}
                   playerUrl={`/user/courses/${course._id}/player`}
+                  onAccessEnded={promptAccessEnded}
                 />
               ))}
             </section>

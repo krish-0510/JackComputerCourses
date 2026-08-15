@@ -200,6 +200,18 @@ const loginUser = async (req, res) => {
             });
         }
 
+        // A blocked account is turned away only once the password has been checked, so a
+        // wrong password still reads as a wrong password and nobody can learn which
+        // numbers are blocked by typing them in. It is the one refusal that names itself,
+        // because the account cannot fix it and has to be told who can.
+        if (user.bannedAt) {
+            return res.status(403).json({
+                success: false,
+                message: User.BANNED_MESSAGE,
+                data: {}
+            });
+        }
+
         user.activeSessionId = createSessionId();
         // Older accounts were stored with whatever casing was typed, so logging in
         // is where they pick up the "First Last" shape.

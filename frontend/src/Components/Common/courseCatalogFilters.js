@@ -1,3 +1,5 @@
+import { isCourseAccessEnded } from '../../utils/courseAccess'
+
 export const defaultCourseCatalogFilters = {
   search: '',
   sort: 'newest',
@@ -35,6 +37,16 @@ export const getFilteredSortedCourses = (courses, filters) => {
       return !search || normalizeText(course?.title).includes(search)
     })
     .sort((first, second) => {
+      // A course that can no longer be opened never outranks one that can, whichever way
+      // the list is being sorted — the sort orders what is worth watching, and the ended
+      // ones settle underneath it. Lists whose courses carry no access window (the admin
+      // and faculty catalogues) are untouched by this.
+      const endedOrder = Number(isCourseAccessEnded(first)) - Number(isCourseAccessEnded(second))
+
+      if (endedOrder) {
+        return endedOrder
+      }
+
       if (filters.sort === 'price') {
         return getNumber(first?.price) - getNumber(second?.price) || sortByTitle(first, second)
       }
