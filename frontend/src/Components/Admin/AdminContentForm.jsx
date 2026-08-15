@@ -1,5 +1,6 @@
 import { Loader2 } from 'lucide-react'
 import { useState } from 'react'
+import AdminTopicSheetUpload from './AdminTopicSheetUpload'
 import ModalShell from '../Common/ModalShell'
 import { CONTENT_TYPES } from '../../utils/content'
 import {
@@ -13,7 +14,7 @@ import {
 
 // Everything optional lives behind one disclosure so the dialog opens on the four
 // fields content cannot be saved without.
-const OPTIONAL_FIELDS = ['code', 'category', 'level', 'type', 'taughtBy', 'topics', 'prerequisites']
+const OPTIONAL_FIELDS = ['code', 'category', 'level', 'type', 'taughtBy', 'prerequisites']
 
 const hasAdditionalDetails = (contentForm) => OPTIONAL_FIELDS.some((field) => contentForm[field])
 
@@ -36,6 +37,7 @@ const AdminContentForm = ({
   saving,
   onChange,
   onClose,
+  onFieldChange,
   onSubmit,
 }) => {
   // The dialog is mounted fresh per open, so an edit that already carries any of
@@ -145,6 +147,27 @@ const AdminContentForm = ({
         />
       </label>
 
+      {/* Topics sit out here rather than behind the disclosure: a syllabus is most of
+          what a course is, and the sheet upload below is no use hidden. */}
+      <Field htmlFor="content-topics" label="Topics" hint="separated by commas">
+        <textarea
+          id="content-topics"
+          name="topics"
+          rows="2"
+          value={contentForm.topics}
+          onChange={onChange}
+          disabled={saving}
+          className={textAreaClass}
+          placeholder="Variables, Loops, Functions, Files"
+        />
+
+        <AdminTopicSheetUpload
+          disabled={saving}
+          topics={contentForm.topics}
+          onChange={(value) => onFieldChange('topics', value)}
+        />
+      </Field>
+
       <div className="space-y-4">
         <button
           type="button"
@@ -232,19 +255,6 @@ const AdminContentForm = ({
                 disabled={saving}
                 className={inputClass}
                 placeholder="Programming faculty"
-              />
-            </Field>
-
-            <Field htmlFor="content-topics" label="Topics" hint="separated by commas">
-              <textarea
-                id="content-topics"
-                name="topics"
-                rows="2"
-                value={contentForm.topics}
-                onChange={onChange}
-                disabled={saving}
-                className={textAreaClass}
-                placeholder="Variables, Loops, Functions, Files"
               />
             </Field>
 

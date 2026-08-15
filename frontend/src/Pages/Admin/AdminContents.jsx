@@ -134,13 +134,16 @@ const AdminContents = () => {
     setFormError('')
   }
 
+  // Most fields are typed into, and one — the topic list — can also be filled from an
+  // uploaded sheet, so both ways of changing the form end at the same setter.
+  const setFormField = (name, value) => {
+    setContentForm((currentForm) => ({ ...currentForm, [name]: value }))
+  }
+
   const handleFormChange = (event) => {
     const { checked, name, type, value } = event.target
 
-    setContentForm((currentForm) => ({
-      ...currentForm,
-      [name]: type === 'checkbox' ? checked : value,
-    }))
+    setFormField(name, type === 'checkbox' ? checked : value)
   }
 
   const handleSave = async (event) => {
@@ -379,6 +382,7 @@ const AdminContents = () => {
           error={formError}
           saving={saving}
           onChange={handleFormChange}
+          onFieldChange={setFormField}
           onClose={closeForm}
           onSubmit={handleSave}
         />
