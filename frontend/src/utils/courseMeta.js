@@ -1,5 +1,6 @@
-import { CalendarClock, CalendarDays, Layers3, PlayCircle, Tag, Users } from 'lucide-react'
+import { CalendarClock, CalendarDays, Clock3, Layers3, PlayCircle, Tag, Users } from 'lucide-react'
 import { getCourseAccessDisplay, isCourseAccessEnded } from './courseAccess'
+import { getCourseLengthLabel } from './courseDuration'
 
 const getCount = (value) => {
   const count = Number(value)
@@ -25,6 +26,15 @@ export const videoMeta = (course) => ({
   icon: PlayCircle,
   label: 'Videos',
   value: pluralize(getCount(course.videoCount), 'video'),
+})
+
+// How much video a course holds, worded rather than clocked — the cards put this on the
+// thumbnail, and the admin header reads it beside the counts it belongs with.
+export const lengthMeta = (course) => ({
+  key: 'length',
+  icon: Clock3,
+  label: 'Total length',
+  value: getCourseLengthLabel(course),
 })
 
 // Nothing in the app puts a currency on a price yet, so a paid course still shows the bare

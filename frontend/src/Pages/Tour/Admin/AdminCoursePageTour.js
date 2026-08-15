@@ -1,25 +1,24 @@
-import { FileText, ListVideo, Plus, ScrollText, Users } from 'lucide-react'
+import { FileText, ListVideo, Plus, ScrollText, SquarePlay, Users } from 'lucide-react'
 
-// A course open to all has no access list, so the page never renders that link and
-// the stop about it is dropped rather than left pointing at nothing.
+// A course open to all has no access list, so the page never renders that link and the stop
+// about it is dropped rather than left pointing at nothing. The stops are numbered from
+// whatever survives that, so dropping one cannot leave a gap in the count.
 const getAdminCoursePageTour = ({ canManageAccess }) => [
   {
     id: 'summary',
     target: '[data-tour="admin-course-summary"]',
     icon: ScrollText,
-    eyebrow: 'Stop 1',
     title: 'The course itself',
     points: [
       'Published or draft, and who it is open to',
-      'The slug is its address on the site',
+      'What it holds, end to end, in one line',
       'Edit these from the courses page',
     ],
   },
   {
     id: 'chapter-form',
-    target: '[data-tour="admin-chapter-form"]',
+    target: '[data-tour="admin-chapter-new"]',
     icon: Plus,
-    eyebrow: 'Stop 2',
     title: 'Add a chapter',
     points: [
       'A name and a YouTube playlist link',
@@ -31,19 +30,29 @@ const getAdminCoursePageTour = ({ canManageAccess }) => [
     id: 'chapters',
     target: '[data-tour="admin-chapter-list"]',
     icon: ListVideo,
-    eyebrow: 'Stop 3',
-    title: 'Chapters and lessons',
+    title: 'Every chapter in order',
     points: [
-      'Open one to see every lesson in it',
-      'Sync pulls new videos from the playlist',
-      'This is the list your students get',
+      'Pick one to open it in the panel beside',
+      'Each line carries its lessons and length',
+      'The dot is its sync standing, the icon its settings',
+      'Edit and delete sit under that icon',
+    ],
+  },
+  {
+    id: 'chapter-detail',
+    target: '[data-tour="admin-chapter-detail"]',
+    icon: SquarePlay,
+    title: 'The chapter you picked',
+    points: [
+      'Empty until you pick one from the list',
+      'Every lesson pulled from its playlist',
+      'Sync Videos reads the playlist again',
     ],
   },
   canManageAccess ? {
     id: 'access',
     target: '[data-tour="admin-course-access"]',
     icon: Users,
-    eyebrow: 'Stop 4',
     title: 'Who can watch it',
     points: [
       'This course is held for named students',
@@ -55,7 +64,6 @@ const getAdminCoursePageTour = ({ canManageAccess }) => [
     id: 'notes',
     target: '[data-tour="admin-course-notes"]',
     icon: FileText,
-    eyebrow: canManageAccess ? 'Stop 5' : 'Stop 4',
     title: 'Notes for the course',
     points: [
       'A Drive folder synced onto the course',
@@ -63,6 +71,6 @@ const getAdminCoursePageTour = ({ canManageAccess }) => [
       'Manage Notes links the folder',
     ],
   },
-].filter(Boolean)
+].filter(Boolean).map((step, index) => ({ ...step, eyebrow: `Stop ${index + 1}` }))
 
 export default getAdminCoursePageTour
