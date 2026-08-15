@@ -1,5 +1,6 @@
 import { AlertCircle, X } from 'lucide-react'
-import { useEffect, useId } from 'react'
+import { useId } from 'react'
+import { useDialogBehaviour } from '../../utils/modal'
 
 // Every dialog in the app is the same object: a scrim, a panel held in the middle of the
 // screen, a header that says what it is and offers one way out, a body that takes the
@@ -32,30 +33,7 @@ const ModalShell = ({
   // thing as the submit button in the footer below.
   const Panel = onSubmit ? 'form' : 'div'
 
-  // Escape closes it the same way the header button does, but never mid-save: the request
-  // is already out and its result still belongs in this dialog.
-  useEffect(() => {
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape' && !busy) {
-        onClose()
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [busy, onClose])
-
-  // The page behind holds its place instead of drifting away under the dialog.
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow
-
-    document.body.style.overflow = 'hidden'
-
-    return () => {
-      document.body.style.overflow = previousOverflow
-    }
-  }, [])
+  useDialogBehaviour({ onClose, busy })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

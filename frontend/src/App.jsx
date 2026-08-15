@@ -30,6 +30,7 @@ import AdminNotes from './Pages/Admin/AdminNotes'
 import AdminTopicNotes from './Pages/Admin/AdminTopicNotes'
 import AdminBugs from './Pages/Admin/AdminBugs'
 import AdminReviews from './Pages/Admin/AdminReviews'
+import AdminContents from './Pages/Admin/AdminContents'
 import FacultyHomePage from './Pages/Faculty/FacultyHomePage'
 import FacultyAttendance from './Pages/Faculty/FacultyAttendance'
 import FacultyCoursesPage from './Pages/Faculty/FacultyCoursesPage'
@@ -39,6 +40,7 @@ import FacultyTopicNotes from './Pages/Faculty/FacultyTopicNotes'
 import FacultyIdePage from './Pages/Faculty/FacultyIdePage'
 import FacultyQueries from './Pages/Faculty/FacultyQueries'
 import FacultyBug from './Pages/Faculty/FacultyBug'
+import FacultyContents from './Pages/Faculty/FacultyContents'
 import SharedIDE from './Components/IDE/SharedIDE'
 import { SELF_REGISTRATION_ENABLED } from './utils/featureFlags'
 
@@ -157,6 +159,7 @@ const App = () => {
               <Route path="/faculty/notes/:courseId" element={protect('faculty', <FacultyCourseNotes />)} />
               <Route path="/faculty/topic-notes" element={protect('faculty', <FacultyTopicNotes />)} />
               <Route path="/faculty/bugs" element={protect('faculty', <FacultyBug />)} />
+              <Route path="/faculty/contents" element={protect('faculty', <FacultyContents />)} />
               <Route path="/faculty/attendance" element={protect('faculty', <FacultyAttendance />)} />
               <Route path="/admin/home" element={protect('admin', <AdminHomePage />)} />
               <Route path="/admin/users" element={protect('admin', <AdminAllUsers />)} />
@@ -166,6 +169,7 @@ const App = () => {
               <Route path="/admin/topic-notes" element={protect('admin', <AdminTopicNotes />)} />
               <Route path="/admin/bugs" element={protect('admin', <AdminBugs />)} />
               <Route path="/admin/reviews" element={protect('admin', <AdminReviews />)} />
+              <Route path="/admin/contents" element={protect('admin', <AdminContents />)} />
               <Route path="/admin/courses/:courseId/access" element={protect('admin', <CourseAccessPage />)} />
               <Route path="/admin/courses/:courseId/notes" element={protect('admin', <AdminNotes />)} />
               <Route path="/admin/courses/:courseId" element={protect('admin', <Course />)} />

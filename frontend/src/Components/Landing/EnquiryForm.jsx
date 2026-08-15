@@ -1,7 +1,7 @@
 import { Loader2, MessageCircle } from 'lucide-react'
 import { useState } from 'react'
+import { useShowcasedContents } from '../../utils/content'
 import { INSTITUTE, whatsappLink } from '../../utils/instituteInfo'
-import { COURSES } from '../../utils/landingContent'
 import LandingButton from './LandingButton'
 
 const UNDECIDED = 'Not decided yet'
@@ -20,7 +20,11 @@ const Field = ({ children, error, label }) => (
 // writes the message the visitor would have had to type and hands it to WhatsApp with
 // their details already in it. Nothing typed here is stored or sent anywhere else.
 const EnquiryForm = () => {
-  const [form, setForm] = useState({ name: '', phone: '', course: COURSES[0].name, message: '' })
+  // The courses offered are fetched rather than listed here, and an enquiry can be
+  // sent before they arrive, so the form starts on the one answer that is always
+  // true and the visitor narrows it if they want to.
+  const { contents } = useShowcasedContents()
+  const [form, setForm] = useState({ name: '', phone: '', course: UNDECIDED, message: '' })
   const [errors, setErrors] = useState({})
   const [isSending, setIsSending] = useState(false)
 
@@ -101,9 +105,9 @@ const EnquiryForm = () => {
 
       <Field label="Course you are interested in">
         <select value={form.course} onChange={update('course')} className={`${FIELD_CLASS} cursor-pointer appearance-none`}>
-          {COURSES.map((course) => (
-            <option key={course.id} value={course.name} className="bg-white dark:bg-slate-900">
-              {course.name}
+          {contents.map((content) => (
+            <option key={content._id} value={content.name} className="bg-white dark:bg-slate-900">
+              {content.name}
             </option>
           ))}
           <option value={UNDECIDED} className="bg-white dark:bg-slate-900">{UNDECIDED}</option>
