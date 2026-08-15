@@ -48,6 +48,7 @@ const getAdminCourseAccessPageTour = ({ isOpenToAll }) => (isOpenToAll ? [
     points: [
       'When each one loses access is shown',
       'Expired means it has already run out',
+      'Custom Expiry gives one an end of its own',
       'Remove takes the course away at once',
     ],
   },

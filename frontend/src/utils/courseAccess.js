@@ -17,6 +17,99 @@ export const formatAccessDate = (value) => {
   }).format(new Date(Date.UTC(year, month - 1, day)))
 }
 
+// Custom expiry is typed rather than picked, so the shape it is typed in is fixed here
+// instead of being left to the browser's locale — a native date field shows DD/MM/YYYY to
+// one admin and MM/DD/YYYY to another, and the two would be reading the same box
+// differently. Both halves are required together: a date without a time has no moment to
+// close at, and a time without a date has no day to close on.
+const EXPIRY_DATE_PATTERN = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
+const EXPIRY_TIME_PATTERN = /^(\d{1,2}):(\d{2})$/
+
+export const EXPIRY_DATE_FORMAT = 'DD/MM/YYYY'
+export const EXPIRY_TIME_FORMAT = 'HH:MM'
+
+const padNumber = (value) => String(value).padStart(2, '0')
+
+// Read as a wall clock, not as UTC: the admin types the moment the course should close
+// where they are, and it is stored as that exact instant so a learner in another
+// timezone loses access at the same moment rather than on a different day.
+export const parseCustomExpiryInput = (dateInput, timeInput) => {
+  const dateMatch = EXPIRY_DATE_PATTERN.exec(String(dateInput || '').trim())
+
+  if (!dateMatch) {
+    return { error: `Enter the expiry date as ${EXPIRY_DATE_FORMAT}.` }
+  }
+
+  const timeMatch = EXPIRY_TIME_PATTERN.exec(String(timeInput || '').trim())
+
+  if (!timeMatch) {
+    return { error: `Enter the expiry time as ${EXPIRY_TIME_FORMAT} in 24-hour form.` }
+  }
+
+  const [, day, month, year] = dateMatch.map(Number)
+  const [, hours, minutes] = timeMatch.map(Number)
+
+  if (hours > 23 || minutes > 59) {
+    return { error: `Enter the expiry time as ${EXPIRY_TIME_FORMAT} in 24-hour form.` }
+  }
+
+  const expiresAt = new Date(year, month - 1, day, hours, minutes, 0, 0)
+
+  // A day that does not exist rolls forward into one that does, so the parts are read
+  // back to catch 31/02 rather than silently closing the course on the 3rd of March.
+  if (
+    expiresAt.getDate() !== day
+    || expiresAt.getMonth() !== month - 1
+    || expiresAt.getFullYear() !== year
+  ) {
+    return { error: 'That date does not exist. Check the day and month.' }
+  }
+
+  return { expiresAt }
+}
+
+export const formatCustomExpiryInput = (value) => {
+  const date = value ? new Date(value) : null
+
+  if (!date || Number.isNaN(date.getTime())) {
+    return { date: '', time: '' }
+  }
+
+  return {
+    date: `${padNumber(date.getDate())}/${padNumber(date.getMonth() + 1)}/${date.getFullYear()}`,
+    time: `${padNumber(date.getHours())}:${padNumber(date.getMinutes())}`,
+  }
+}
+
+// A deadline the site worked out lands on midnight, so it is a date and nothing more. One
+// an admin set lands on a time they chose, and dropping that time would let a course that
+// closes at 18:00 read as though it had the whole day left.
+export const formatAccessDateTime = (value) => {
+  const date = value ? new Date(value) : null
+
+  if (!date || Number.isNaN(date.getTime())) {
+    return ''
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date)
+}
+
+// The one question every surface asks about when a window closes, so the catalogue card,
+// the player, the admin table and the enrolment list can never disagree about the same
+// grant — and a hand-set expiry keeps its time of day wherever it is shown.
+export const formatAccessEnd = (access) => (
+  access?.accessType === 'custom'
+    ? formatAccessDateTime(access.accessEndsAt)
+    : formatAccessDate(access?.accessEndsOn || access?.accessEndsAt)
+)
+
 export const getCourseAccessDisplay = (course) => {
   if (course.isOpenToAll) {
     return {
@@ -27,7 +120,7 @@ export const getCourseAccessDisplay = (course) => {
 
   return {
     label: 'Access Ends',
-    value: formatAccessDate(course.accessEndsOn || course.accessEndsAt) || 'N/A',
+    value: formatAccessEnd(course) || 'N/A',
   }
 }
 
@@ -101,7 +194,7 @@ export const getCourseExpiryWarning = (course) => {
     return null
   }
 
-  const endDate = formatAccessDate(course.accessEndsOn || course.accessEndsAt)
+  const endDate = formatAccessEnd(course)
 
   if (course.isAccessExpired) {
     return {

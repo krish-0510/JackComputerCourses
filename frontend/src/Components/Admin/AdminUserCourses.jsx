@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { useEffect, useState } from 'react'
-import { formatAccessDate } from '../../utils/courseAccess'
+import { formatAccessEnd } from '../../utils/courseAccess'
 
 const API_BASE_URL = import.meta.env.VITE_BASE_URL
 
@@ -8,7 +8,7 @@ const API_BASE_URL = import.meta.env.VITE_BASE_URL
 // own tense rather than spending a badge on it — which also keeps the colour from being
 // the only thing saying whether a course is still running.
 const getDeadlineLabel = (course) => {
-  const endDate = formatAccessDate(course.accessEndsOn)
+  const endDate = formatAccessEnd(course)
 
   if (!endDate) {
     return 'No deadline set'
