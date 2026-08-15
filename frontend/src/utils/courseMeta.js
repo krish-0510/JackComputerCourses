@@ -1,5 +1,5 @@
 import { CalendarClock, CalendarDays, Layers3, PlayCircle, Tag, Users } from 'lucide-react'
-import { getCourseAccessDisplay } from './courseAccess'
+import { getCourseAccessDisplay, isCourseAccessEnded } from './courseAccess'
 
 const getCount = (value) => {
   const count = Number(value)
@@ -61,7 +61,8 @@ export const accessCountMeta = (course) => ({
 })
 
 // A student is told when their own access runs out rather than how the course is shared,
-// so this is the one stat whose wording changes with the viewer.
+// so this is the one stat whose wording changes with the viewer — and once the date is
+// behind them it is read as history rather than as a plan, so it is worded that way.
 export const accessEndsMeta = (course) => {
   const { value } = getCourseAccessDisplay(course)
 
@@ -69,10 +70,12 @@ export const accessEndsMeta = (course) => {
     return { key: 'access', icon: Users, label: 'Access', value: 'Open to all' }
   }
 
+  const hasEnded = isCourseAccessEnded(course)
+
   return {
     key: 'access',
     icon: CalendarDays,
-    label: 'Access ends',
-    value: value === 'N/A' ? 'No end date' : `Ends ${value}`,
+    label: hasEnded ? 'Access ended' : 'Access ends',
+    value: value === 'N/A' ? 'No end date' : `${hasEnded ? 'Ended' : 'Ends'} ${value}`,
   }
 }

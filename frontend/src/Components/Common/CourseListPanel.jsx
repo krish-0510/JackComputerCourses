@@ -38,7 +38,7 @@ const getCount = (value) => {
   return Number.isFinite(count) && count > 0 ? count : 0
 }
 
-const CourseRow = ({ course, accent, href, openInNewTab, chip }) => {
+const CourseRow = ({ course, accent, href, openInNewTab, chip, onSelect }) => {
   const meta = [course.category, course.level].filter(Boolean).join(' · ')
   const rowClass = `group flex items-center gap-4 px-4 py-3.5 transition focus:outline-none sm:px-5 ${accent.row}`
 
@@ -85,6 +85,17 @@ const CourseRow = ({ course, accent, href, openInNewTab, chip }) => {
     </>
   )
 
+  // A row with nowhere to go — a student's course whose access has ended — is a button,
+  // not a dimmed link: the page decides what the click says, and nothing is offered to the
+  // middle mouse button that would only land on a refusal.
+  if (!href) {
+    return (
+      <button type="button" onClick={() => onSelect?.(course)} className={`w-full text-left ${rowClass}`}>
+        {content}
+      </button>
+    )
+  }
+
   // A student's row opens the player in its own tab, the way the catalogue already
   // does; a faculty's row stays inside the app.
   return openInNewTab ? (
@@ -105,6 +116,7 @@ const CourseListPanel = ({
   browseLabel = 'Search and filter',
   getHref,
   getChip,
+  onSelect,
   openInNewTab = false,
   emptyHint = 'Courses appear here as soon as they are published.',
 }) => {
@@ -153,6 +165,7 @@ const CourseListPanel = ({
                 href={getHref(course)}
                 openInNewTab={openInNewTab}
                 chip={getChip?.(course)}
+                onSelect={onSelect}
               />
             </motion.div>
           ))}

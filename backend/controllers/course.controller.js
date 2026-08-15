@@ -1339,21 +1339,33 @@ const getUserCourseLookupQuery = (courseIdOrSlug) => {
     return slug ? { slug } : null;
 };
 
+// Two questions get asked about the same grant, and they are not the same question.
+// Whether the course is this account's at all is answered by having a window — the
+// catalogue asks that, so a course whose days have run out keeps its place on the shelf
+// and can say who to ask for more time. Whether it opens is answered by still being
+// inside that window, which is what everything serving content asks. A course that hands
+// out no window at all — never granted, or granted with no deadline to be inside of — is
+// neither, so it stays off the shelf exactly as it always has.
+const courseUserHasEnrolment = (course, userPhone, options = {}) => (
+    Boolean(getCourseAccessWindow(course, userPhone, options.now))
+);
+
 const courseUserHasAccess = (course, userPhone, options = {}) => {
-    const normalizedUserPhone = normalizePhone(userPhone);
-
-    if (!normalizedUserPhone) {
-        return false;
-    }
-
-    if (course?.isOpenToAll) {
-        return true;
-    }
-
-    const accessWindow = getCourseAccessWindow(course, normalizedUserPhone, options.now);
+    const accessWindow = getCourseAccessWindow(course, userPhone, options.now);
 
     return Boolean(accessWindow && !accessWindow.isExpired);
 };
+
+// The two refusals are not the same news, and only one of them has something to be done
+// about it, so a link opened past its deadline is told the window closed and who reopens
+// it rather than being told the course was never theirs.
+const sendCourseAccessDenied = (res, course, userPhone) => sendError(
+    res,
+    403,
+    courseUserHasEnrolment(course, userPhone)
+        ? 'Your access to this course has ended. Contact the admin for more time on it.'
+        : 'You do not have access to this course'
+);
 
 const getNextChapterOrder = async (courseId) => {
     const lastChapter = await Chapter.findOne({ courseId }).sort({ order: -1 }).select('order');
@@ -2109,14 +2121,17 @@ const getCoursesByUser = async (req, res) => {
                 { 'accessGrants.phone': userPhone }
             ]
         }).sort({ createdAt: -1 });
-        const accessibleCourses = courses.filter((course) => courseUserHasAccess(course, userPhone));
-        const courseCounts = await getCourseCounts(accessibleCourses.map((course) => course._id));
+        // Ended enrolments are sent too, each carrying the deadline it closed on: a
+        // student who cannot find a course they paid for reads it as the site losing it,
+        // so it stays visible and says for itself that it needs the admin to reopen.
+        const enrolledCourses = courses.filter((course) => courseUserHasEnrolment(course, userPhone));
+        const courseCounts = await getCourseCounts(enrolledCourses.map((course) => course._id));
 
         return res.status(200).json({
             success: true,
             message: 'Courses fetched successfully',
             data: {
-                courses: accessibleCourses.map((course) => formatCourseData(
+                courses: enrolledCourses.map((course) => formatCourseData(
                     course,
                     courseCounts.get(course._id.toString()) || {},
                     {
@@ -2156,7 +2171,7 @@ const getCourseByUser = async (req, res) => {
         }
 
         if (!courseUserHasAccess(course, userPhone)) {
-            return sendError(res, 403, 'You do not have access to this course');
+            return sendCourseAccessDenied(res, course, userPhone);
         }
 
         const chapters = await Chapter.find({ courseId: course._id }).sort({ order: 1, createdAt: 1 });
@@ -2213,7 +2228,7 @@ const saveCourseProgressByUser = async (req, res) => {
         }
 
         if (!courseUserHasAccess(course, userPhone)) {
-            return sendError(res, 403, 'You do not have access to this course');
+            return sendCourseAccessDenied(res, course, userPhone);
         }
 
         return await saveLastWatchedVideo(res, {
@@ -2262,7 +2277,7 @@ const getCourseVideoEmbedByUser = async (req, res) => {
         }
 
         if (!courseUserHasAccess(course, userPhone)) {
-            return sendError(res, 403, 'You do not have access to this course');
+            return sendCourseAccessDenied(res, course, userPhone);
         }
 
         const chapter = await Chapter.findOne({
@@ -2488,6 +2503,7 @@ module.exports = {
     normalizePhoneArray,
     parseVideoKey,
     courseUserHasAccess,
+    courseUserHasEnrolment,
     parseCourseDurationMonths,
     getCourseDurationDays,
     getCourseAccessWindow,

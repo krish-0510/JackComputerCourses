@@ -189,6 +189,14 @@ const getRemainingTitle = (daysRemaining) => {
   return `Your access ends in ${daysRemaining} days`
 }
 
+// A closed window is the one thing that changes what a course *is* on the student's shelf
+// rather than only what it says: it keeps its card and opens nothing. Every surface that
+// has to tell an ended course from a running one asks here, so a card, a row and a sort
+// order can never disagree about which is which.
+export const isCourseAccessEnded = (course) => (
+  Boolean(course?.isAccessExpired) && !course?.isOpenToAll
+)
+
 export const getCourseExpiryWarning = (course) => {
   if (!course || course.isOpenToAll) {
     return null
@@ -196,7 +204,7 @@ export const getCourseExpiryWarning = (course) => {
 
   const endDate = formatAccessEnd(course)
 
-  if (course.isAccessExpired) {
+  if (isCourseAccessEnded(course)) {
     return {
       level: 'expired',
       daysRemaining: 0,
@@ -223,4 +231,59 @@ export const getCourseExpiryWarning = (course) => {
     detail: endDate ? `Access ends on ${endDate}.` : '',
     ...EXPIRY_LEVEL_STYLES[level],
   }
+}
+
+// The shelf is summed up above itself rather than left to be pieced together card by card,
+// and the two kinds of deadline are summed up apart because they ask for different things:
+// a course that has ended needs the admin, one that is about to end needs nothing but the
+// date. Each line is written off the same warning the cards below it carry, so the banner
+// can never name an urgency the cards disagree with.
+const EXPIRY_SUMMARY_GROUPS = [
+  {
+    isMember: (warning) => warning.level === 'expired',
+    getManyTitle: (count) => `${count} of your courses have ended`,
+    getManyDetail: () => '',
+    ask: 'Click a course to ask the admin for more time on it.',
+  },
+  {
+    isMember: (warning) => warning.level !== 'expired',
+    getManyTitle: (count) => `${count} of your courses are ending soon`,
+    getManyDetail: (mostUrgent) => (
+      `${mostUrgent.course.title} is the first to close (${mostUrgent.warning.chipLabel.toLowerCase()}).`
+    ),
+    ask: '',
+  },
+]
+
+// One course is named outright; several are counted, and led by the one closing first.
+const summarizeExpiryGroup = (entries, { getManyTitle, getManyDetail, ask }) => {
+  if (!entries.length) {
+    return null
+  }
+
+  const [mostUrgent] = entries
+  const isOnlyOne = entries.length === 1
+
+  return {
+    warning: mostUrgent.warning,
+    title: isOnlyOne
+      ? `${mostUrgent.course.title}: ${mostUrgent.warning.chipLabel.toLowerCase()}`
+      : getManyTitle(entries.length),
+    detail: [isOnlyOne ? mostUrgent.warning.detail : getManyDetail(mostUrgent), ask]
+      .filter(Boolean)
+      .join(' '),
+  }
+}
+
+// Read off every course rather than a filtered grid: a deadline does not stop mattering
+// because a search is narrowing the page.
+export const getCourseExpirySummaries = (courses) => {
+  const entries = (courses || [])
+    .map((course) => ({ course, warning: getCourseExpiryWarning(course) }))
+    .filter((entry) => entry.warning)
+    .sort((first, second) => first.warning.daysRemaining - second.warning.daysRemaining)
+
+  return EXPIRY_SUMMARY_GROUPS
+    .map((group) => summarizeExpiryGroup(entries.filter((entry) => group.isMember(entry.warning)), group))
+    .filter(Boolean)
 }

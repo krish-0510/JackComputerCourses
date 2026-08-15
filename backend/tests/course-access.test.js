@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const {
     normalizePhoneArray,
     courseUserHasAccess,
+    courseUserHasEnrolment,
     parseCourseDurationMonths,
     getCourseDurationDays,
     getCourseAccessWindow,
@@ -212,6 +213,38 @@ test('an account is kept active by a custom expiry exactly as by the course dura
         [...collectActiveUserPhones(courses, new Date('2026-08-06T12:00:00.000Z'))],
         ['9000000001']
     );
+});
+
+test('an ended grant is still an enrolment, and a course that never granted one is not', () => {
+    const course = {
+        duration: '1',
+        accessGrants: [
+            { phone: '9876543210', grantedAt: new Date('2026-01-01T10:00:00.000Z') }
+        ]
+    };
+
+    const afterItClosed = { now: new Date('2026-06-01T12:00:00.000Z') };
+
+    // The course stays on the student's shelf once the window closes, and opens nothing.
+    assert.equal(courseUserHasEnrolment(course, '9876543210', afterItClosed), true);
+    assert.equal(courseUserHasAccess(course, '9876543210', afterItClosed), false);
+
+    assert.equal(courseUserHasEnrolment(course, '0000000000', afterItClosed), false);
+    assert.equal(courseUserHasEnrolment(course, '', afterItClosed), false);
+
+    // A grant with no deadline to be inside of is no window at all, so it is no more
+    // visible than it is playable.
+    const noDeadline = {
+        duration: '',
+        accessGrants: [
+            { phone: '9876543210', grantedAt: new Date('2026-01-01T10:00:00.000Z') }
+        ]
+    };
+
+    assert.equal(courseUserHasEnrolment(noDeadline, '9876543210', afterItClosed), false);
+
+    // An open course is everyone's, and never ends.
+    assert.equal(courseUserHasEnrolment({ isOpenToAll: true }, '9876543210', afterItClosed), true);
 });
 
 test('a part day left on a custom expiry still counts as a day', () => {

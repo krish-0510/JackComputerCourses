@@ -12,7 +12,12 @@ import UserProfilePrompt from '../../Components/User/Profile/UserProfilePrompt'
 import UserReviewPrompt from '../../Components/User/Review/UserReviewPrompt'
 import userHomePageTour from '../Tour/User/UserHomePageTour'
 import { useAuth } from '../../Context/AuthContext'
-import { getCourseAccessDisplay, getCourseExpiryWarning } from '../../utils/courseAccess'
+import {
+  getCourseAccessDisplay,
+  getCourseExpiryWarning,
+  isCourseAccessEnded,
+} from '../../utils/courseAccess'
+import { useCourseAccessEndedPrompt } from '../../utils/courseAccessPrompt'
 import {
   STATUS_META,
   getMonthLabel,
@@ -32,6 +37,7 @@ const isAuthError = (error) => [401, 403].includes(error?.response?.status)
 
 const UserHomePage = () => {
   const { auth, clearAuth, setAuth } = useAuth()
+  const promptAccessEnded = useCourseAccessEndedPrompt()
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [isAuthorized, setIsAuthorized] = useState(false)
   const [userProfile, setUserProfile] = useState(null)
@@ -59,6 +65,14 @@ const UserHomePage = () => {
   // The month is read for its totals only — the attendance page is where a day by day
   // record belongs, and it is one click away from here.
   const summary = useMemo(() => summarizeAttendance(records), [records])
+
+  // Courses that have ended stay on the list — they are how a student knows what to ask
+  // the admin about — but they sit under the ones that can still be watched, and they are
+  // counted apart so "open to you" never counts a course that is not.
+  const [openCourses, endedCourses] = useMemo(() => [
+    courses.filter((course) => !isCourseAccessEnded(course)),
+    courses.filter(isCourseAccessEnded),
+  ], [courses])
 
   // Courses and the month are one load: the page has nothing to say until both are in,
   // so a single request pair also means a single spinner and a single retry.
@@ -233,7 +247,7 @@ const UserHomePage = () => {
 
           <UserHomeStats
             summary={summary}
-            courseCount={courses.length}
+            courseCount={openCourses.length}
             monthLabel={monthLabel}
             loading={loadingData}
           />
@@ -244,12 +258,16 @@ const UserHomePage = () => {
             title="Your courses"
             subtitle={loadingData
               ? 'Checking what is open to you...'
-              : `${courses.length} ${courses.length === 1 ? 'course is' : 'courses are'} open to you`}
-            courses={courses}
+              : `${openCourses.length} ${openCourses.length === 1 ? 'course is' : 'courses are'} open to you${
+                endedCourses.length ? ` · ${endedCourses.length} ended` : ''
+              }`}
+            courses={[...openCourses, ...endedCourses]}
             loading={loadingData}
             accent="blue"
             browseHref="/user/courses"
-            getHref={(course) => `/user/courses/${course._id}/player`}
+            // An ended course has no player to open, so its row asks the admin instead.
+            getHref={(course) => (isCourseAccessEnded(course) ? '' : `/user/courses/${course._id}/player`)}
+            onSelect={promptAccessEnded}
             getChip={(course) => {
               // A row that is about to close says so in the badge it already had, so the
               // deadline is spotted from the home list without opening the course.
