@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { BookOpen, CalendarCheck, ChevronDown, CircleUser, History, Pencil, Sheet, Trash2 } from 'lucide-react'
+import { BookOpen, CalendarCheck, ChevronDown, CircleUser, History, Pencil, ShieldBan, ShieldCheck, Sheet, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import AdminBulkImportUsers from '../../Components/Admin/AdminBulkImportUsers'
@@ -72,7 +72,9 @@ const AdminAllUsers = () => {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [saving, setSaving] = useState(false)
-  const [deletingUserId, setDeletingUserId] = useState('')
+  // The row the table is working on — deleting it or blocking it. One id, because both
+  // run off the same row menu and the table is only ever busy with one of them.
+  const [pendingUserId, setPendingUserId] = useState('')
   const [historyUser, setHistoryUser] = useState(null)
   const [attendanceUser, setAttendanceUser] = useState(null)
   const [coursesUser, setCoursesUser] = useState(null)
@@ -267,6 +269,20 @@ const AdminAllUsers = () => {
     setEditingForm(emptyForm)
   }
 
+  // A row is replaced by the account the server sent back rather than by what was typed,
+  // so the standings it carries stay the server's to decide. A response without one falls
+  // back to re-reading the table.
+  const applyUpdatedUser = async (userId, updatedUser) => {
+    if (!updatedUser) {
+      await fetchUsers()
+      return
+    }
+
+    setUsers((currentUsers) => currentUsers.map((user) => (
+      user._id === userId ? updatedUser : user
+    )))
+  }
+
   const handleUpdateUser = async (event) => {
     event.preventDefault()
     resetMessages()
@@ -301,15 +317,7 @@ const AdminAllUsers = () => {
         throw new Error(response.data?.message || 'Unable to update user')
       }
 
-      const updatedUser = response.data?.data?.user
-
-      if (updatedUser) {
-        setUsers((currentUsers) => currentUsers.map((user) => (
-          user._id === editingUserId ? updatedUser : user
-        )))
-      } else {
-        await fetchUsers()
-      }
+      await applyUpdatedUser(editingUserId, response.data?.data?.user)
 
       cancelEditingUser()
       setSuccess('User updated successfully.')
@@ -332,6 +340,50 @@ const AdminAllUsers = () => {
     setSuccess(`${importedUsers.length} user${importedUsers.length === 1 ? '' : 's'} imported successfully.`)
   }
 
+  // Blocking is the answer to a student who should not be in the app for a while but whose
+  // work is not in question, so it is asked for the way deleting is and says plainly what
+  // it does and does not touch. It is reversible from the same menu.
+  const handleToggleUserBan = async (user) => {
+    resetMessages()
+
+    const isBlocking = !user.isBanned
+    const confirmed = await confirm({
+      title: isBlocking ? 'Block this student?' : 'Unblock this student?',
+      description: isBlocking
+        ? 'They are signed out at once and cannot log in again until you unblock them. Their courses, attendance and work are all kept.'
+        : 'They can log in again from their next attempt. Nothing else about the account changes.',
+      subject: [getUserName(user), user.phone].filter(Boolean).join(' · '),
+      confirmLabel: isBlocking ? 'Block student' : 'Unblock student',
+      tone: isBlocking ? 'danger' : 'info',
+      icon: isBlocking ? ShieldBan : ShieldCheck,
+    })
+
+    if (!confirmed) {
+      return
+    }
+
+    setPendingUserId(user._id)
+
+    try {
+      const response = await axios.patch(`${API_BASE_URL}/admin/users/${user._id}`, {
+        isBanned: isBlocking,
+      }, {
+        withCredentials: true,
+      })
+
+      if (!response.data?.success) {
+        throw new Error(response.data?.message || 'Unable to update user')
+      }
+
+      await applyUpdatedUser(user._id, response.data?.data?.user)
+      setSuccess(`User ${isBlocking ? 'blocked' : 'unblocked'} successfully.`)
+    } catch (banError) {
+      setError(getErrorMessage(banError, `Unable to ${isBlocking ? 'block' : 'unblock'} user. Please try again.`))
+    } finally {
+      setPendingUserId('')
+    }
+  }
+
   const handleDeleteUser = async (user) => {
     resetMessages()
 
@@ -346,7 +398,7 @@ const AdminAllUsers = () => {
       return
     }
 
-    setDeletingUserId(user._id)
+    setPendingUserId(user._id)
 
     try {
       const response = await axios.delete(`${API_BASE_URL}/admin/users/${user._id}`, {
@@ -365,7 +417,7 @@ const AdminAllUsers = () => {
     } catch (deleteError) {
       setError(getErrorMessage(deleteError, 'Unable to delete user. Please try again.'))
     } finally {
-      setDeletingUserId('')
+      setPendingUserId('')
     }
   }
 
@@ -679,7 +731,7 @@ const AdminAllUsers = () => {
                   <tbody className="divide-y divide-slate-200 dark:divide-slate-800 bg-white dark:bg-slate-900">
                     {visibleUsers.map((user, index) => {
                       const isEditing = editingUserId === user._id
-                      const isDeleting = deletingUserId === user._id
+                      const isPending = pendingUserId === user._id
                       const userName = getUserName(user)
 
                       return (
@@ -738,8 +790,8 @@ const AdminAllUsers = () => {
                               </button>
                               <ActionMenu
                                 label={`Settings for ${userName || user.phone}`}
-                                busy={isDeleting}
-                                disabled={saving || Boolean(deletingUserId)}
+                                busy={isPending}
+                                disabled={saving || Boolean(pendingUserId)}
                                 actions={[
                                   {
                                     key: 'history',
@@ -752,6 +804,13 @@ const AdminAllUsers = () => {
                                     label: 'Edit user',
                                     icon: Pencil,
                                     onClick: () => startEditingUser(user),
+                                  },
+                                  {
+                                    key: 'ban',
+                                    label: user.isBanned ? 'Unblock user' : 'Block user',
+                                    icon: user.isBanned ? ShieldCheck : ShieldBan,
+                                    danger: !user.isBanned,
+                                    onClick: () => handleToggleUserBan(user),
                                   },
                                   {
                                     key: 'delete',

@@ -24,7 +24,7 @@ const loginHistorySchema = new mongoose.Schema({
     },
     logoutReason: {
         type: String,
-        enum: ['manual', 'replaced'],
+        enum: ['manual', 'replaced', 'blocked'],
         default: null
     }
 });
@@ -40,12 +40,18 @@ const formatLoginHistoryEntry = (entry) => ({
     isActive: !entry.logoutAt
 });
 
+// Whatever session is open is closed by whoever takes it away, and the history keeps
+// which of them it was: a fresh login replaces it, the admin blocking the account ends it.
+loginHistorySchema.statics.closeOpenSessions = function closeOpenSessions(accountType, accountId, logoutReason) {
+    return this.updateMany(
+        { accountType, accountId, logoutAt: null },
+        { $set: { logoutAt: new Date(), logoutReason } }
+    );
+};
+
 // A login always ends whatever session was open, because only one session may stay active.
 loginHistorySchema.statics.startSession = async function startSession(accountType, accountId, sessionId) {
-    await this.updateMany(
-        { accountType, accountId, logoutAt: null },
-        { $set: { logoutAt: new Date(), logoutReason: 'replaced' } }
-    );
+    await this.closeOpenSessions(accountType, accountId, 'replaced');
 
     return this.create({ accountType, accountId, sessionId });
 };

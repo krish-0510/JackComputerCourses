@@ -34,10 +34,17 @@ export const formatHistoryTime = (value) => {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
 }
 
+// A session that was ended for the account rather than by it says which it was, so a
+// student asking why they were signed out is answered by the history itself.
+const LOGOUT_LABELS = {
+  replaced: 'Signed out (new login)',
+  blocked: 'Signed out (blocked)',
+}
+
 export const getLogoutLabel = (entry) => {
-  if (entry?.logoutAt) {
-    return entry.logoutReason === 'replaced' ? 'Signed out (new login)' : 'Signed out'
+  if (!entry?.logoutAt) {
+    return 'Still signed in'
   }
 
-  return 'Still signed in'
+  return LOGOUT_LABELS[entry.logoutReason] || 'Signed out'
 }

@@ -96,7 +96,7 @@ const formatAttendanceData = (record, includeMarkedBy) => ({
 const getStudentsForAttendance = async (req, res) => {
     try {
         const [students, activePhones] = await Promise.all([
-            User.find({}).select('name phone').sort({ name: 1 }).lean(),
+            User.find({}).select('name phone bannedAt').sort({ name: 1 }).lean(),
             getActiveUserPhones()
         ]);
 
@@ -108,7 +108,11 @@ const getStudentsForAttendance = async (req, res) => {
                     _id: student._id.toString(),
                     name: student.name || '',
                     phone: student.phone,
-                    isActive: activePhones.has(student.phone)
+                    isActive: activePhones.has(student.phone),
+                    // A blocked student still belongs on the roster — they are still on the
+                    // course and can still sit in the room — so the badge beside the name
+                    // says it here too rather than only in the admin table.
+                    isBanned: Boolean(student.bannedAt)
                 }))
             }
         });

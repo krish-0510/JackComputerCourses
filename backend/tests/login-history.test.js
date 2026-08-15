@@ -45,6 +45,24 @@ test('login history defaults to an open session stamped with a login time', () =
     assert.equal(entry.logoutReason, null);
 });
 
+// A session can be ended by the account, by the account's next login, or by the admin
+// blocking it, and only the reasons the app actually writes may be stored.
+test('login history accepts only the ways a session is actually ended', () => {
+    const closedEntry = (logoutReason) => new LoginHistory({
+        accountType: 'user',
+        accountId: new mongoose.Types.ObjectId(),
+        sessionId: 'session-1',
+        logoutAt: new Date(),
+        logoutReason
+    });
+
+    ['manual', 'replaced', 'blocked'].forEach((logoutReason) => {
+        assert.equal(closedEntry(logoutReason).validateSync(), undefined);
+    });
+
+    assert.ok(closedEntry('expired').validateSync().errors.logoutReason);
+});
+
 test('login history indexes newest-first lookups per account', () => {
     const hasHistoryIndex = LoginHistory.schema.indexes().some(([fields]) => (
         fields.accountType === 1 && fields.accountId === 1 && fields.loginAt === -1

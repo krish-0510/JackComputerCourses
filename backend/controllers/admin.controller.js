@@ -84,6 +84,10 @@ const formatUserData = (user, isActive = false) => ({
     // as missing, so a caller only has to handle "not filled in".
     profile: User.formatProfile(user.profile),
     isActive: Boolean(isActive),
+    // Blocked is a second standing rather than a replacement for the first: an account
+    // can be inside a course window and still be barred from signing in, and the table
+    // has to be able to say both.
+    isBanned: Boolean(user.bannedAt),
     role: 'user'
 });
 
@@ -259,7 +263,7 @@ const getAllUsersByAdmin = async (req, res) => {
         // Every enrolment in the catalogue is read once, so the whole list is
         // classified without a query per account.
         const [users, activePhones] = await Promise.all([
-            User.find({}).select('name phone profile').sort({ phone: 1 }),
+            User.find({}).select('name phone profile bannedAt').sort({ phone: 1 }),
             getActiveUserPhones()
         ]);
 
@@ -446,11 +450,15 @@ const updateUserByAdmin = async (req, res) => {
         const hasName = hasBodyField(req.body, 'firstName') || hasBodyField(req.body, 'lastName');
         const hasPhone = hasBodyField(req.body, 'phone');
         const hasPassword = hasBodyField(req.body, 'password');
+        // Blocking is sent on its own from the users table rather than through the edit
+        // form, so it is another field this may be asked for and nothing else has to be
+        // sent alongside it.
+        const hasBanned = hasBodyField(req.body, 'isBanned');
 
-        if (!hasName && !hasPhone && !hasPassword) {
+        if (!hasName && !hasPhone && !hasPassword && !hasBanned) {
             return res.status(400).json({
                 success: false,
-                message: 'Name, phone or password is required',
+                message: 'Name, phone, password or blocked standing is required',
                 data: {}
             });
         }
@@ -523,7 +531,21 @@ const updateUserByAdmin = async (req, res) => {
             user.password = await bcrypt.hash(userPassword, 10);
         }
 
+        // Blocking an account that is already blocked leaves the date it was applied on
+        // alone, so a second click never reads as a fresh block.
+        if (hasBanned) {
+            user.bannedAt = req.body.isBanned ? (user.bannedAt || new Date()) : null;
+        }
+
         await user.save();
+
+        // A block takes hold at once rather than whenever the open tab happens to reload:
+        // the session on the account is closed with the same stroke, so the next request
+        // it makes signs it out and the login it lands on is the one that turns it away.
+        if (hasBanned && user.bannedAt) {
+            await User.updateOne({ _id: user._id }, { $set: { activeSessionId: null } });
+            await LoginHistory.closeOpenSessions('user', user._id, 'blocked');
+        }
 
         if (hasPhone && oldPhone !== user.phone) {
             await Course.updateMany(
@@ -626,7 +648,7 @@ const getUserLoginHistoryByAdmin = async (req, res) => {
             });
         }
 
-        const user = await User.findById(id).select('name phone profile');
+        const user = await User.findById(id).select('name phone profile bannedAt');
 
         if (!user) {
             return res.status(404).json({

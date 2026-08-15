@@ -62,6 +62,14 @@ const userSchema = new mongoose.Schema({
         default: null,
         select: false
     },
+    // Being blocked is a standing the account carries rather than something done to its
+    // data, so it is stored as the moment it was applied and read as a yes or no. While
+    // it is set the account cannot sign in and holds no session; clearing it lets the
+    // same phone and password back in with everything it owned untouched.
+    bannedAt: {
+        type: Date,
+        default: null
+    },
     // The guided walkthrough runs once per account, so the moment it was finished
     // is the only thing that has to outlive the session it ran in.
     tourCompletedAt: {
@@ -198,6 +206,11 @@ const remindPromptLater = (kind, now = new Date()) => ({
 });
 
 const User = mongoose.model('User', userSchema);
+
+// Said in one voice wherever a blocked account is turned away, so the login that refuses
+// it and anything that reports the refusal can never tell it two different things. It says
+// what to do about it, because nothing on the account's own side can lift it.
+User.BANNED_MESSAGE = 'Your account has been blocked by the admin. Please contact the admin to get access back.';
 
 User.formatName = formatName;
 User.hasFullName = hasFullName;

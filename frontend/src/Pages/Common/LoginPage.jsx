@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { Loader2 } from 'lucide-react'
+import { Loader2, ShieldBan } from 'lucide-react'
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import AuthLoadingScreen from '../../Components/Common/AuthLoadingScreen'
@@ -7,6 +7,7 @@ import PasswordInput from '../../Components/Common/PasswordInput'
 import PasswordResetRequestModal from '../../Components/Common/PasswordResetRequestModal'
 import ThemeToggle from '../../Components/Common/ThemeToggle'
 import { fetchRoleProfile, getPostAuthRedirectPath, useAuth } from '../../Context/AuthContext'
+import { useAdminContactPrompt } from '../../utils/adminContactPrompt'
 import { SELF_REGISTRATION_ENABLED } from '../../utils/featureFlags'
 
 // Loaded on demand so three.js stays out of the initial bundle.
@@ -27,6 +28,12 @@ const getErrorMessage = (error) => (
   error?.response?.data?.message || 'Unable to login. Please try again.'
 )
 
+// One form logs in three kinds of account, so a refusal normally only means "not this
+// role, try the next one". A 403 is different: the credentials were right and the site
+// still said no, which only a blocked account gets. That answer ends the attempts and is
+// the one shown, or it would be buried under the next role's "invalid phone or password".
+const isBlockedError = (error) => error?.response?.status === 403
+
 const holdForTransition = (startedAt) => new Promise((resolve) => {
   setTimeout(resolve, Math.max(MIN_TRANSITION_MS - (Date.now() - startedAt), 0))
 })
@@ -35,6 +42,7 @@ const LoginPage = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { auth, clearAuth, setAuth } = useAuth()
+  const promptAdminContact = useAdminContactPrompt()
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -186,14 +194,34 @@ const LoginPage = () => {
         break
       } catch (loginError) {
         lastError = loginError
+
+        if (isBlockedError(loginError)) {
+          break
+        }
       }
     }
 
     // A failed login drops straight back to the form instead of holding the
     // animation, so nobody waits three seconds to be told the phone is wrong.
     if (!signedIn) {
-      setError(getErrorMessage(lastError))
+      const message = getErrorMessage(lastError)
+
+      setError(message)
       setLoading(false)
+
+      // A blocked account is the one refusal the person cannot do anything about from
+      // here, so it is not left as a line above the button: the server's sentence is put
+      // in front of them with the way to reach the admin attached.
+      if (isBlockedError(lastError)) {
+        promptAdminContact({
+          title: 'Your account is blocked',
+          description: message,
+          subject: trimmedPhone,
+          chatMessage: `my account (${trimmedPhone}) is blocked. I want to get access back.`,
+          icon: ShieldBan,
+        })
+      }
+
       return
     }
 
