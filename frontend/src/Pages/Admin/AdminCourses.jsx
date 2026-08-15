@@ -15,6 +15,7 @@ import PageTour from '../../Components/Tour/PageTour'
 import adminCoursesPageTour from '../Tour/Admin/AdminCoursesPageTour'
 import { useAuth } from '../../Context/AuthContext'
 import { useConfirm } from '../../Context/ConfirmContext'
+import { parseListInput, toListInput } from '../../utils/formFields'
 
 const API_BASE_URL = import.meta.env.VITE_BASE_URL
 
@@ -39,17 +40,6 @@ const emptyCourseForm = {
 
 const getErrorMessage = (error, fallback) => (
   error?.response?.data?.message || fallback
-)
-
-const toListInput = (value) => (
-  Array.isArray(value) ? value.join(', ') : ''
-)
-
-const parseListInput = (value) => (
-  String(value || '')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
 )
 
 const getCourseForm = (course) => ({

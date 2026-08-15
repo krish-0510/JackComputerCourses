@@ -3,7 +3,7 @@ import { BookOpen, Bug, CalendarCheck, FileText, MessageSquareCode, Terminal } f
 import { Link } from 'react-router-dom'
 import { fadeUp, staggerParent } from '../../utils/motion'
 
-// Seven places in the navigation, six of them worth a shortcut. A faculty knows what
+// Eight places in the navigation, six of them worth a shortcut. A faculty knows what
 // these are called, so they are pills rather than tiles with explanations: one row to
 // scan, and the badge is the only thing asking to be read.
 const QUICK_LINKS = [

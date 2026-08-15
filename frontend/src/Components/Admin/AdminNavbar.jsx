@@ -15,6 +15,7 @@ const NAV_LINKS = [
   { to: '/admin/faculties', label: 'Faculties' },
   { to: '/admin/attendance', label: 'Attendance' },
   { to: '/admin/courses', label: 'Courses' },
+  { to: '/admin/contents', label: 'Content' },
   { to: '/admin/topic-notes', label: 'Notes' },
   { to: '/admin/bugs', label: 'Bugs', alertKey: 'bugs' },
   { to: '/admin/reviews', label: 'Reviews' },

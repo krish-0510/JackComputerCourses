@@ -2,13 +2,8 @@ import axios from 'axios'
 import { motion, useReducedMotion } from 'framer-motion'
 import { CheckCircle2, Download, FileSpreadsheet, Loader2, Upload, XCircle } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import {
-  SAMPLE_USERS,
-  SHEET_COLUMNS,
-  SHEET_FILE_ACCEPT,
-  downloadSampleSheet,
-  readUserSheet,
-} from '../../utils/bulkUserSheet'
+import { SAMPLE_USERS, SHEET_COLUMNS, downloadSampleSheet, readUserSheet } from '../../utils/bulkUserSheet'
+import { SHEET_FILE_ACCEPT } from '../../utils/sheetFile'
 
 const API_BASE_URL = import.meta.env.VITE_BASE_URL
 

@@ -8,138 +8,10 @@ import {
 } from 'lucide-react'
 import { INSTITUTE, whatsappLink } from './instituteInfo'
 
-// Everything the public site says about the institute lives here. The home page shows a
-// slice of it, the catalog shows all of it and the footer links to it, so a syllabus is
-// written once and three screens follow.
-
-// Fees are real only where they are fixed. CCC, Tally and Graphic Designing are quoted
-// per batch, so they ask rather than invent a number.
-export const ON_REQUEST_FEE = 'Fees on request'
-
-export const COURSES = [
-  {
-    id: 'python',
-    code: 'PY-01',
-    name: 'Python Programming',
-    category: 'Programming',
-    duration: '3 months',
-    fee: '₹10,000',
-    feeNote: 'full course',
-    level: 'No experience needed',
-    mode: 'Classroom + online',
-    taughtBy: 'Programming faculty',
-    accent: 'from-blue-500 via-indigo-500 to-cyan-400',
-    blurb: 'Start from "what is a variable" and finish able to write, read and fix your own programs.',
-    short: 'Programming from zero. 3 months, ₹10,000.',
-    modules: [
-      'Variables, input and output',
-      'Conditions and loops',
-      'Lists, dictionaries, strings',
-      'Functions, files and modules',
-      'Reading errors and debugging',
-      'Two projects that are yours',
-    ],
-    build: 'You build: a marksheet calculator and a file-based records program.',
-  },
-  {
-    id: 'sql',
-    code: 'SQ-02',
-    name: 'SQL & Databases',
-    category: 'Programming',
-    duration: '3 months',
-    fee: '₹10,000',
-    feeNote: 'full course',
-    level: 'No experience needed',
-    mode: 'Classroom + online',
-    taughtBy: 'Programming faculty',
-    accent: 'from-cyan-400 via-sky-500 to-blue-600',
-    blurb: 'Learn to store, join and question real data — the skill sitting under every office system.',
-    short: 'Query real data. 3 months, ₹10,000.',
-    modules: [
-      'How tables and keys work',
-      'SELECT, WHERE, ORDER BY',
-      'JOINs across tables',
-      'GROUP BY and aggregates',
-      'INSERT, UPDATE, DELETE',
-      'Designing a small database',
-    ],
-    build: 'You build: a student-records database you query end to end.',
-  },
-  {
-    id: 'ccc',
-    code: 'CC-03',
-    name: 'CCC — Computer Basics',
-    category: 'Computer basics',
-    duration: 'Ask us',
-    fee: ON_REQUEST_FEE,
-    feeNote: 'ask on WhatsApp',
-    level: 'Absolute beginners',
-    mode: 'Classroom',
-    taughtBy: 'CCC & Tally faculty',
-    accent: 'from-emerald-400 via-teal-500 to-cyan-500',
-    blurb: 'Computer fundamentals on the CCC syllabus — the machine, the internet and everyday office work.',
-    short: 'Computer fundamentals, CCC syllabus.',
-    modules: [
-      'Using a computer confidently',
-      'Internet, email and online forms',
-      'Word processing',
-      'Spreadsheets',
-      'Presentations',
-      'Digital payments and staying safe',
-    ],
-    build: 'Taught by our two CCC & Tally faculty, in the lab.',
-  },
-  {
-    id: 'tally',
-    code: 'TL-04',
-    name: 'Tally',
-    category: 'Accounts',
-    duration: 'Ask us',
-    fee: ON_REQUEST_FEE,
-    feeNote: 'ask on WhatsApp',
-    level: 'Commerce students, shop owners',
-    mode: 'Classroom',
-    taughtBy: 'CCC & Tally faculty',
-    accent: 'from-amber-400 via-orange-500 to-rose-500',
-    blurb: 'Keep books the way businesses around Ahmedabad actually keep them.',
-    short: 'Accounts, entries, GST, reports.',
-    modules: [
-      'Company setup and ledgers',
-      'Vouchers and daily entries',
-      'Inventory',
-      'GST entries',
-      'Reports and balance sheet',
-      'Practice on real-style data',
-    ],
-    build: 'Taught by our two CCC & Tally faculty, in the lab.',
-  },
-  {
-    id: 'design',
-    code: 'GD-05',
-    name: 'Graphic Designing',
-    category: 'Design',
-    duration: 'Ask us',
-    fee: ON_REQUEST_FEE,
-    feeNote: 'ask on WhatsApp',
-    level: 'Beginners and freelancers',
-    mode: 'Classroom',
-    taughtBy: 'Design faculty',
-    accent: 'from-fuchsia-500 via-purple-500 to-indigo-500',
-    blurb: 'Make the posters, cards and social posts that local businesses pay for.',
-    short: 'Photoshop, CorelDRAW, print-ready work.',
-    modules: [
-      'Type, colour and layout basics',
-      'Photoshop',
-      'CorelDRAW / Illustrator',
-      'Print-ready files',
-      'Social media sizes',
-      'A portfolio of your own work',
-    ],
-    build: 'Taught by our graphic design faculty, in the lab.',
-  },
-]
-
-export const COURSE_CATEGORIES = ['All', 'Programming', 'Computer basics', 'Accounts', 'Design']
+// What the site says about the institute itself: how it teaches, how to join, what it
+// answers before you ask. What it *offers* is not here — courses are written by the
+// admin in the portal and read from the server, so adding one is no longer a deploy.
+// See utils/content.js for those.
 
 // The four public pages, in the order the navbar and the footer both list them.
 export const PUBLIC_NAV_LINKS = [
@@ -148,12 +20,6 @@ export const PUBLIC_NAV_LINKS = [
   { label: 'About', to: '/about' },
   { label: 'Contact', to: '/contact' },
 ]
-
-// One enquiry sentence per course, so the chat that opens already says which course it
-// is about instead of starting from "hi".
-export const courseEnquiryLink = (course) => whatsappLink(
-  `Hi ${INSTITUTE.legalName}, I want details about the ${course.name} course.`,
-)
 
 export const GENERAL_ENQUIRY_LINK = whatsappLink(
   `Hi ${INSTITUTE.legalName}, I want to know about your courses.`,

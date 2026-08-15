@@ -1,5 +1,4 @@
-import { ArrowRight, ArrowUpRight, Clock, MapPin, MessageCircle, Monitor, Phone } from 'lucide-react'
-import CourseCard from '../../Components/Landing/CourseCard'
+import { ArrowRight, Clock, MapPin, MessageCircle, Monitor, Phone } from 'lucide-react'
 import FaqList from '../../Components/Landing/FaqList'
 import LandingButton from '../../Components/Landing/LandingButton'
 import LandingLayout from '../../Components/Landing/LandingLayout'
@@ -12,7 +11,6 @@ import Ticker from '../../Components/Landing/Ticker'
 import TypingCode from '../../Components/Landing/TypingCode'
 import { INSTITUTE, telLink } from '../../utils/instituteInfo'
 import {
-  COURSES,
   GENERAL_ENQUIRY_LINK,
   JOIN_STEPS,
   LEARNING_MODES,
@@ -85,36 +83,6 @@ const LandingPage = () => (
     <section className="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
       <SectionHeading
         index={1}
-        eyebrow="Courses"
-        title={<>What we teach, and exactly<br className="hidden sm:block" /> what is inside it.</>}
-        action={(
-          <LandingButton to="/courses" variant="outline">
-            See all {COURSES.length} courses
-            <ArrowUpRight className="h-4 w-4" />
-          </LandingButton>
-        )}
-      />
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        {COURSES.slice(0, 2).map((course, index) => (
-          <Reveal key={course.id} delay={index * 0.08} className="h-full">
-            <CourseCard course={course} detailed />
-          </Reveal>
-        ))}
-      </div>
-
-      <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        {COURSES.slice(2).map((course, index) => (
-          <Reveal key={course.id} delay={index * 0.06}>
-            <CourseCard course={course} />
-          </Reveal>
-        ))}
-      </div>
-    </section>
-
-    <section className="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
-      <SectionHeading
-        index={2}
         eyebrow="The student portal"
         title="Class ends. The learning doesn't."
       >
@@ -145,7 +113,7 @@ const LandingPage = () => (
 
     <section className="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
       <SectionHeading
-        index={3}
+        index={2}
         eyebrow="Two ways to learn"
         title="Come to the lab, or stay home. Same course."
       />
@@ -184,7 +152,7 @@ const LandingPage = () => (
 
     <section className="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
       <SectionHeading
-        index={4}
+        index={3}
         eyebrow="How to join"
         title="Three steps. No forms, no fees to enquire."
       />
@@ -212,7 +180,7 @@ const LandingPage = () => (
 
     <section className="mx-auto max-w-4xl px-4 py-24 sm:px-6 lg:px-8">
       <SectionHeading
-        index={5}
+        index={4}
         eyebrow="Questions"
         align="center"
         title="The things people ask before joining"

@@ -1,8 +1,6 @@
 import { ListPlus, Loader2 } from 'lucide-react'
 import ModalShell from '../Common/ModalShell'
-
-const inputClass = 'mt-2 w-full rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-4 py-3 text-slate-900 dark:text-slate-100 outline-none transition focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 dark:focus:ring-indigo-900/40 disabled:bg-slate-100 dark:disabled:bg-slate-800'
-const labelClass = 'block text-sm font-medium text-slate-700 dark:text-slate-200'
+import { inputClass, labelClass } from '../../utils/formFields'
 
 // Creating a chapter and editing one are the same three fields, so they are the same
 // dialog: which of the two it is only changes what the header and the submit button say.

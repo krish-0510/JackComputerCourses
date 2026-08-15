@@ -5,6 +5,7 @@ import {
   CalendarCheck,
   CornerDownLeft,
   FileText,
+  Globe,
   GraduationCap,
   Search,
   Star,
@@ -15,7 +16,7 @@ import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { COMMAND_SHORTCUT } from '../../utils/shortcut'
 
-// An admin runs the whole site from seven pages and a catalogue that keeps growing, so
+// An admin runs the whole site from eight pages and a catalogue that keeps growing, so
 // the fastest way to any of them is typing its name. The palette is the one control on
 // this dashboard that reaches past the page it is on: everywhere else the admin clicks
 // through, here the keyboard alone gets there.
@@ -26,6 +27,7 @@ const DESTINATIONS = [
   { to: '/admin/faculties', label: 'Faculties', hint: 'Faculty accounts and login history', Icon: GraduationCap },
   { to: '/admin/attendance', label: 'Attendance', hint: 'Mark, correct and print the register', Icon: CalendarCheck },
   { to: '/admin/courses', label: 'Courses', hint: 'Catalogue, chapters and access', Icon: BookOpen },
+  { to: '/admin/contents', label: 'Content', hint: 'What the website offers, and what it showcases', Icon: Globe },
   { to: '/admin/topic-notes', label: 'Notes', hint: 'Topic notes pulled from Drive', Icon: FileText },
   { to: '/admin/bugs', label: 'Bugs', hint: 'Open reports and decided history', Icon: Bug, badgeKey: 'bugs' },
   { to: '/admin/reviews', label: 'Reviews', hint: 'Student reviews and the landing page showcase', Icon: Star },
